@@ -177,6 +177,11 @@ namespace PcmSuite.Tuning.Core.Parsers
                 // Write a byte-cleaned temp file that MSXML can tolerate
                 cleanTmp = WriteByteCleaned(xdfPath);
 
+                // The cleaned text is often valid XML already. Load it with .NET's own parser first, which works
+                // on every platform; MSXML below exists only on Windows.
+                try { return XDocument.Load(cleanTmp); }
+                catch (Exception ex) { msxmlDiag = "cleaned text: " + ex.Message; }
+
                 // Try MSXML versions from most lenient (3.0) to strictest (6.0)
                 string[] progIds = {
                     "Msxml2.DOMDocument.3.0",
@@ -355,23 +360,28 @@ namespace PcmSuite.Tuning.Core.Parsers
                 return eq.Length; // longer equation = more complex = prefer it
             }
 
-            var best = new Dictionary<string, (int score, TableDefinition table)>(
-                StringComparer.OrdinalIgnoreCase);
+            // Only a stub and its full definition at the SAME address are duplicates. Two tables that merely share a
+            // title (per-bank or per-segment tables) are different tables and must both stay.
+            static string Key(TableDefinition t) => t.Name.ToUpperInvariant() + "@" + t.Address;
+
+            var best = new Dictionary<string, (int score, TableDefinition table)>();
 
             foreach (var t in tables)
             {
                 int score = EquationScore(t.ScalingEquation);
-                if (!best.TryGetValue(t.Name, out var existing) || score >= existing.score)
-                    best[t.Name] = (score, t);
+                string key = Key(t);
+                if (!best.TryGetValue(key, out var existing) || score >= existing.score)
+                    best[key] = (score, t);
             }
 
             // Preserve original order of first occurrence
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>();
             var result = new List<TableDefinition>(best.Count);
             foreach (var t in tables)
             {
-                if (seen.Add(t.Name))
-                    result.Add(best[t.Name].table);
+                string key = Key(t);
+                if (seen.Add(key))
+                    result.Add(best[key].table);
             }
             return result;
         }
@@ -604,6 +614,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 // ── X axis: column headers ────────────────────────────
                 table.XUnits  = units ?? "";
                 table.XLabels = StripUnitPrefix(ParseLabels(xAxis), table.XUnits);
+                table.XLabelsAreReal = table.XLabels.Count > 0;
 
                 // If no static labels, try to read count for placeholder labels
                 if (table.XLabels.Count == 0)
@@ -618,6 +629,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 // ── Y axis: row headers ────────────────────────────────
                 table.YUnits  = units ?? "";
                 table.YLabels = StripUnitPrefix(ParseLabels(xAxis), table.YUnits);
+                table.YLabelsAreReal = table.YLabels.Count > 0;
 
                 if (table.YLabels.Count == 0)
                 {

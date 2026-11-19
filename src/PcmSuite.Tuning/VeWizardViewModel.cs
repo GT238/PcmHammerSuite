@@ -120,6 +120,13 @@ public sealed partial class VeWizardViewModel : ObservableObject
             return;
         }
 
+        if (!this.editor.ColumnLabelsAreReal || !this.editor.RowLabelsAreReal)
+        {
+            this.Status = "This table's axis values are not listed in the XDF (they are stored in the BIN), so the wizard cannot " +
+                          "tell which cell a sample belongs to. Choose a table whose axes show real values, such as RPM and kPa.";
+            return;
+        }
+
         int rows = this.editor.Rows;
         int cols = this.editor.Columns;
         double[] colAxis = new double[cols];

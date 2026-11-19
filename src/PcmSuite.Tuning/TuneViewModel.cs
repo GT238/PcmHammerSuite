@@ -154,7 +154,8 @@ public partial class TuneViewModel : ObservableObject
 
     [ObservableProperty] private bool _canUndoSwap;
 
-    private byte[]? swapBackup;
+    // What the swap overwrote: only those address ranges are put back by Undo, so edits made elsewhere survive.
+    private List<(uint Start, byte[] Bytes)>? swapBackup;
 
     /// <summary>Copy the chosen segments from a donor BIN into the open BIN, in memory.</summary>
     public async Task ApplySegmentsAsync(byte[] donor, IReadOnlyList<PcmSuite.Tuning.Core.Models.SegmentInfo> segments, string donorName)
@@ -164,9 +165,12 @@ public partial class TuneViewModel : ObservableObject
             return;
         }
 
-        this.swapBackup = (byte[])this.BinData.Clone();
+        this.swapBackup = new List<(uint, byte[])>();
         foreach (PcmSuite.Tuning.Core.Models.SegmentInfo s in segments)
         {
+            byte[] before = new byte[s.ByteCount];
+            Array.Copy(this.BinData, s.StartAddress, before, 0, s.ByteCount);
+            this.swapBackup.Add((s.StartAddress, before));
             Array.Copy(donor, s.StartAddress, this.BinData, s.StartAddress, s.ByteCount);
         }
 
@@ -184,11 +188,18 @@ public partial class TuneViewModel : ObservableObject
             return;
         }
 
-        Array.Copy(this.swapBackup, this.BinData, this.BinData.Length);
+        foreach ((uint start, byte[] bytes) in this.swapBackup)
+        {
+            Array.Copy(bytes, 0, this.BinData, start, bytes.Length);
+        }
+
         this.swapBackup = null;
         this.CanUndoSwap = false;
+
+        // The BIN differs from whatever was saved last, so it counts as modified (and is no longer "ready to flash").
+        this.IsDirty = true;
         await this.AfterBytesChangedAsync();
-        this.Status = "Segment swap undone.";
+        this.Status = "Segment swap undone (not saved yet).";
     }
 
     /// <summary>The BIN's bytes changed under the open page: show them again.</summary>
@@ -488,6 +499,20 @@ public partial class TuneViewModel : ObservableObject
             }
         };
         this.Editor = editor;
+
+        // A reference to a table this XDF does not contain is evaluated as 1.0, which can be wrong by a large factor.
+        // Say so instead of showing plausible-looking numbers.
+        List<string> missing = System.Text.RegularExpressions.Regex
+            .Matches(node.Table.ScalingEquation ?? string.Empty, @"(?<![A-Za-z0-9_])(?:ref|table)\s*:\s*'([^']*)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[1].Value)
+            .Where(name => !this.tablesByName.ContainsKey(name))
+            .Distinct()
+            .ToList();
+        if (missing.Count > 0)
+        {
+            this.Status = "Warning: this table's equation uses " + string.Join(", ", missing.Select(m => "'" + m + "'")) +
+                          ", which is not in this XDF. The values shown may be wrong; do not edit this table.";
+        }
     }
 
     /// <summary>Equations can refer to another table's value, as ref:'name'.</summary>
@@ -600,8 +625,33 @@ public partial class TuneViewModel : ObservableObject
         this.LoadRecent();
     }
 
+    /// <summary>
+    /// Forget everything about the BIN that was open. Without this, a new BIN whose XDF is missing or unreadable
+    /// would be shown in the header while the tree and editor still worked on the previous BIN's bytes.
+    /// </summary>
+    private void ResetLoadedState()
+    {
+        this.SelectedNode = null;
+        this.Editor = null;
+        this.Patch = null;
+        this.patchViewModels = new Dictionary<PatchDefinition, PatchViewModel>();
+        this.allCategories = new List<ParameterNode>();
+        this.Categories.Clear();
+        this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
+        this.BinData = null;
+        this.ReferenceData = null;
+        this.ReferenceName = string.Empty;
+        this.IsComparing = false;
+        this.ChangedOnly = false;
+        this.swapBackup = null;
+        this.CanUndoSwap = false;
+        this.IsDirty = false;
+        this.ReadyToFlashPath = null;
+    }
+
     public async Task OpenBinAsync(string path)
     {
+        this.ResetLoadedState();
         this.RememberRecent(path);
         this.BinPath = path;
         this.BinName = Path.GetFileName(path);

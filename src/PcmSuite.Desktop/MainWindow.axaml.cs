@@ -51,23 +51,44 @@ public partial class MainWindow : Window
             this.Tabs.SelectedIndex = FlashTab;
         };
 
-        // Do not lose unsaved tuning edits by closing the window.
+        // Closing the window must not lose unsaved tuning edits, must not kill a flash operation half-way through,
+        // and must let go of the adapter (and stop logging, which closes the log file) before the app exits.
         this.Closing += async (_, e) =>
         {
-            if (this.closeConfirmed || !this.tune.IsDirty)
+            if (this.closeConfirmed)
+            {
+                return;
+            }
+
+            if (this.flash.IsOperationRunning)
+            {
+                e.Cancel = true;
+                this.ShellStatus.Text = "A flash operation is running. Wait for it to finish, or Cancel it, before closing PcmSuite.";
+                return;
+            }
+
+            bool holdsAdapter = (this.currentTab == LoggerTab && this.logger.IsConnected)
+                                || (this.currentTab == FlashTab && this.flash.SelectedDevice != null);
+            if (!this.tune.IsDirty && !holdsAdapter)
             {
                 return;
             }
 
             e.Cancel = true;
 
-            // The question is shown over the Tune screen, so bring that screen up first.
-            this.Tabs.SelectedIndex = TuneTab;
-            if (await this.tuneView.ConfirmDiscardAsync())
+            if (this.tune.IsDirty)
             {
-                this.closeConfirmed = true;
-                this.Close();
+                // The question is shown over the Tune screen, so bring that screen up first.
+                this.Tabs.SelectedIndex = TuneTab;
+                if (!await this.tuneView.ConfirmDiscardAsync())
+                {
+                    return;
+                }
             }
+
+            await this.ReleaseAsync(this.currentTab);
+            this.closeConfirmed = true;
+            this.Close();
         };
     }
 

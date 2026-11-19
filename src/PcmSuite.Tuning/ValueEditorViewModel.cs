@@ -48,6 +48,11 @@ public sealed partial class ValueEditorViewModel : ObservableObject
 
     public bool CanUndo => this.undoStack.Count > 0;
 
+    /// <summary>False when the column labels are only the placeholders 1..N, not real axis values.</summary>
+    public bool ColumnLabelsAreReal => this.table.XLabelsAreReal;
+
+    public bool RowLabelsAreReal => this.table.YLabelsAreReal;
+
     public string XAxisTitle => this.table.XUnits;
 
     public string YAxisTitle => this.table.YUnits;
@@ -90,7 +95,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             return false;
         }
 
-        double raw = Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax);
+        double raw = Math.Round(Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax));
         double oldRaw = this.table.GetRawValue(this.bin, row, column);
         if (raw == oldRaw)
         {
@@ -183,7 +188,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
         List<(int Row, int Column, double Old)> before = new();
         foreach ((int row, int column, double scaled) in edits)
         {
-            double raw = Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax);
+            double raw = Math.Round(Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax));
             double old = this.table.GetRawValue(this.bin, row, column);
             if (raw == old)
             {

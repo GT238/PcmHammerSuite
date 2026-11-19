@@ -49,9 +49,17 @@ namespace PcmSuite.Tuning.Core.Models
         public string       XUnits  { get; set; } = "";
         public List<string> XLabels { get; set; } = new();
 
+        /// <summary>
+        /// True when the XDF gave real axis values. False when XLabels only holds the placeholders 1..N
+        /// (the axis is stored in the BIN, or has no values), which must not be read as numbers.
+        /// </summary>
+        public bool XLabelsAreReal { get; set; }
+
         // ── Y axis (row headers) ──────────────────────────────────────
         public string       YUnits  { get; set; } = "";
         public List<string> YLabels { get; set; } = new();
+
+        public bool YLabelsAreReal { get; set; }
 
         // ── Read raw value from bin ───────────────────────────────────
         public double GetRawValue(byte[] bin, int row, int col)
@@ -204,7 +212,18 @@ namespace PcmSuite.Tuning.Core.Models
                 else
                     hi = mid;
             }
-            return (double)Math.Clamp(lo, rawMin, rawMax);
+
+            // The search lands on the first raw value at or past the target. The previous one may be closer.
+            long best = Math.Clamp(lo, rawMin, rawMax);
+            if (best > rawMin)
+            {
+                double here = Math.Abs(ApplyScaling(best, crossRefResolver) - scaledValue);
+                double before = Math.Abs(ApplyScaling(best - 1, crossRefResolver) - scaledValue);
+                if (before < here)
+                    best--;
+            }
+
+            return (double)best;
         }
 
         // ── Apply scaling equation ────────────────────────────────────
@@ -230,35 +249,113 @@ namespace PcmSuite.Tuning.Core.Models
 
             // Resolve cross-references:  ref:'some_name'  →  numeric value from BIN.
             // "table:'name'" is also accepted, because XDFs exported by Universal Patcher write it that way.
-            string safeEq = Regex.Replace(
-                eq,
-                @"(?<![A-Za-z0-9_])(?:ref|table)\s*:\s*'([^']*)'",
-                m =>
-                {
-                    string refName = m.Groups[1].Value;
-                    if (crossRefResolver != null)
+            string safeEq = eq;
+            if (eq.Contains("ref", StringComparison.OrdinalIgnoreCase) || eq.Contains("table", StringComparison.OrdinalIgnoreCase))
+            {
+                safeEq = Regex.Replace(
+                    eq,
+                    @"(?<![A-Za-z0-9_])(?:ref|table)\s*:\s*'([^']*)'",
+                    m =>
                     {
-                        try { return crossRefResolver(refName).ToString("R", CultureInfo.InvariantCulture); }
-                        catch { }
+                        string refName = m.Groups[1].Value;
+                        if (crossRefResolver != null)
+                        {
+                            try { return crossRefResolver(refName).ToString("R", CultureInfo.InvariantCulture); }
+                            catch { }
+                        }
+                        return "1.0";
+                    },
+                    RegexOptions.IgnoreCase);
+            }
+
+            // The same equation text is evaluated for every cell, so work it out once.
+            if (EvaluatorCache.Count > 5000)
+                EvaluatorCache.Clear(); // equations with substituted constants can keep producing new texts
+            Evaluator ev = EvaluatorCache.GetOrAdd(safeEq, BuildEvaluator);
+            return ev.Apply(rawX);
+        }
+
+        // ── Cached evaluators ─────────────────────────────────────────
+        // Parsing an equation (regexes, or building a DynamicExpresso interpreter) is far costlier than
+        // evaluating it, and a table edit re-reads every cell several times.
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Evaluator> EvaluatorCache = new();
+
+        private sealed class Evaluator
+        {
+            private readonly bool affine;
+            private readonly double slope;
+            private readonly double offset;
+            private readonly string equation;
+            private readonly Func<double, double, double>? compiled;
+
+            public Evaluator(string equation, bool affine, double slope, double offset, Func<double, double, double>? compiled)
+            {
+                this.equation = equation;
+                this.affine = affine;
+                this.slope = slope;
+                this.offset = offset;
+                this.compiled = compiled;
+            }
+
+            public double Apply(double x)
+            {
+                if (this.affine)
+                    return this.slope * x + this.offset;
+
+                if (this.compiled != null)
+                {
+                    try { return this.compiled(x, x); }
+                    catch { return x; }
+                }
+
+                // Pattern the fast path knows but that is not a straight line: keep evaluating it directly.
+                return TryFastEval(this.equation, x) ?? x;
+            }
+        }
+
+        private static Evaluator BuildEvaluator(string equation)
+        {
+            // Every pattern the fast path recognises is a straight line in X, so two probes give the line.
+            // Use it only if it reproduces the direct evaluation at a few more points.
+            double? f0 = TryFastEval(equation, 0);
+            double? f1 = TryFastEval(equation, 1);
+            if (f0.HasValue && f1.HasValue)
+            {
+                double slope = f1.Value - f0.Value;
+                double offset = f0.Value;
+                bool exact = true;
+                foreach (double probe in new[] { 7.0, 255.0, 4096.0, 65535.0, -3.0 })
+                {
+                    double direct = TryFastEval(equation, probe) ?? double.NaN;
+                    double line = slope * probe + offset;
+                    if (double.IsNaN(direct) || Math.Abs(direct - line) > 1e-9 * Math.Max(1.0, Math.Abs(direct)))
+                    {
+                        exact = false;
+                        break;
                     }
-                    return "1.0";
-                },
-                RegexOptions.IgnoreCase);
+                }
 
-            // ── Fast path: handle the common XDF linear equation patterns directly
-            // without DynamicExpresso (avoids locale/version issues).
-            double? fast = TryFastEval(safeEq, rawX);
-            if (fast.HasValue) return fast.Value;
+                return exact
+                    ? new Evaluator(equation, true, slope, offset, null)
+                    : new Evaluator(equation, false, 0, 0, null);
+            }
 
-            // ── Fallback: DynamicExpresso for non-linear / complex expressions
+            if (f0.HasValue || f1.HasValue)
+                return new Evaluator(equation, false, 0, 0, null);
+
+            // Non-linear or complex expression: compile once with DynamicExpresso.
             try
             {
                 var interp = new Interpreter();
-                return (double)interp.Eval(safeEq,
-                    new Parameter("X", typeof(double), rawX),
-                    new Parameter("x", typeof(double), rawX));
+                Func<double, double, double> compiled =
+                    interp.ParseAsDelegate<Func<double, double, double>>(equation, "X", "x");
+                return new Evaluator(equation, false, 0, 0, compiled);
             }
-            catch { return rawX; }
+            catch
+            {
+                return new Evaluator(equation, false, 0, 0, (x, _) => x);
+            }
         }
 
         /// <summary>
