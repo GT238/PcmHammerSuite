@@ -1,0 +1,84 @@
+<local:OverlayPage xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PcmSuite.Tune"
+        xmlns:vm="using:PcmSuite.Tune"
+        x:Class="PcmSuite.Tune.VeWizardView"
+        x:DataType="vm:VeWizardViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Suggest corrections from a log" FontSize="16" FontWeight="SemiBold"/>
+            <TextBlock TextWrapping="Wrap"><Run Text="Table:"/> <Run Text="{Binding TableName}" FontWeight="SemiBold"/></TextBlock>
+            <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                       Text="Each logged sample is placed in the nearest cell using the table's own axes. A cell's correction is the average over its samples. Only meaningful for driving where this table actually sets the fuelling (for example speed-density, or MAF failure), so treat the result as a suggestion to review."/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="8" Margin="0,10,0,10">
+            <WrapPanel>
+                <Button Content="Open log..." Click="OnOpenLog" Margin="0,0,8,6"/>
+                <Button Content="Newest Logger log" Click="OnNewestLog" Margin="0,0,8,6"
+                        ToolTip.Tip="The most recent PcmLog file in the Logger's log folder"/>
+                <TextBlock Text="{Binding LogName}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            </WrapPanel>
+
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+                <TextBlock Text="Engine speed" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Headings}" SelectedIndex="{Binding RpmIndex}"/>
+                <TextBlock Grid.Row="1" Text="Load (MAP)" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Headings}" SelectedIndex="{Binding LoadIndex}"/>
+                <TextBlock Grid.Row="2" Text="Measurement" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Headings}" SelectedIndex="{Binding ValueIndex}"/>
+                <TextBlock Grid.Row="3" Text="Second trim" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="3" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeadingsOptional}" SelectedIndex="{Binding TrimIndex}"/>
+                <TextBlock Grid.Row="4" Text="Measurement is" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="4" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding Mode}">
+                    <ComboBoxItem Content="Air/fuel ratio or lambda (divided by the target)"/>
+                    <ComboBoxItem Content="Fuel trim percent (added to the second trim, if chosen)"/>
+                </ComboBox>
+            </Grid>
+
+            <WrapPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,6" IsVisible="{Binding IsAfrMode}">
+                    <TextBlock Text="Target" VerticalAlignment="Center"/>
+                    <NumericUpDown Value="{Binding Target}" Increment="0.1" FormatString="0.0##" MinWidth="120"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,6">
+                    <TextBlock Text="Min samples per cell" VerticalAlignment="Center"/>
+                    <NumericUpDown Value="{Binding MinSamples}" Minimum="1" Maximum="1000" Increment="1" FormatString="0" MinWidth="110"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
+                    <TextBlock Text="Max change %" VerticalAlignment="Center"/>
+                    <NumericUpDown Value="{Binding MaxChange}" Minimum="1" Maximum="50" Increment="1" FormatString="0" MinWidth="110"/>
+                </StackPanel>
+            </WrapPanel>
+
+            <CheckBox Content="RPM runs along the table's columns (the top row)" IsChecked="{Binding RpmOnColumns}"/>
+            <Button Content="Calculate" Click="OnCalculate"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="2">
+            <ItemsControl ItemsSource="{Binding Results}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:VeCellResult">
+                        <StackPanel Margin="0,4">
+                            <TextBlock Text="{Binding Where}" FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace"/>
+                            <TextBlock Opacity="0.85" FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace">
+                                <Run Text="{Binding Change}"/>  <Run Text="{Binding Samples}"/><Run Text=" samples"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="3" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#E8A838"/>
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8"/>
+            <Button Grid.Column="1" Content="Apply to table" Click="OnApply" IsEnabled="{Binding HasResults}" Margin="8,0,0,0"
+                    ToolTip.Tip="Writes the proposed values into the open table as one edit you can undo"/>
+            <Button Grid.Column="2" Content="Close" Click="OnClose" Margin="8,0,0,0"/>
+        </Grid>
+    </Grid>
+</local:OverlayPage>

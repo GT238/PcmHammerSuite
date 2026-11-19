@@ -1,0 +1,58 @@
+<local:OverlayPage xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PcmSuite.Tune"
+        xmlns:vm="using:PcmSuite.Tune"
+        xmlns:core="using:PcmSuite.Tuning.Core.Models"
+        x:Class="PcmSuite.Tune.SegmentSwapView"
+        x:DataType="vm:SegmentSwapViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Copy segments from another BIN into the open BIN" FontSize="16" FontWeight="SemiBold"
+                       TextWrapping="Wrap"/>
+            <TextBlock TextWrapping="Wrap"><Run Text="Open BIN:"/> <Run Text="{Binding TargetName}" FontWeight="SemiBold"/></TextBlock>
+            <TextBlock TextWrapping="Wrap"><Run Text="Donor BIN:"/> <Run Text="{Binding DonorName}" FontWeight="SemiBold"/></TextBlock>
+            <TextBlock Text="{Binding OsLine}" Opacity="0.75" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <WrapPanel Grid.Row="1" Margin="0,10,0,10">
+            <Button Content="Choose donor BIN..." Click="OnChooseDonor" Margin="0,0,8,6"/>
+            <Button Content="Tick the differing ones" Click="OnSelectDifferent" IsEnabled="{Binding HasSegments}" Margin="0,0,8,6"
+                    ToolTip.Tip="Ticks every segment that differs, except the system segment"/>
+            <Button Content="Clear" Click="OnSelectNone" IsEnabled="{Binding HasSegments}" Margin="0,0,0,6"/>
+        </WrapPanel>
+
+        <ScrollViewer Grid.Row="2">
+            <ItemsControl ItemsSource="{Binding Segments}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="core:SegmentInfo">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ControlElevationBorderBrush}" Padding="4,8">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSwap}"
+                                          VerticalAlignment="Top" MinWidth="32"/>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Note}" Opacity="0.75" TextWrapping="Wrap"/>
+                                    <TextBlock Opacity="0.6" FontSize="12" FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace">
+                                        <Run Text="Checksum"/> <Run Text="{Binding TargetChecksum}"/> <Run Text="→"/> <Run Text="{Binding DonorChecksum}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding SizeText}" Opacity="0.7" VerticalAlignment="Top"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="3" Text="{Binding Preview}" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#E8A838"/>
+
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8"/>
+            <Button Grid.Column="1" Content="Copy into open BIN" Click="OnApply" Margin="8,0,0,0"
+                    IsEnabled="{Binding HasSegments}"/>
+            <Button Grid.Column="2" Content="Close" Click="OnClose" Margin="8,0,0,0"/>
+        </Grid>
+    </Grid>
+</local:OverlayPage>

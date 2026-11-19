@@ -1,0 +1,206 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PcmSuite.Tune"
+             xmlns:local="using:PcmSuite.Tune"
+             xmlns:core="using:PcmSuite.Tuning.Core.Models"
+             x:Class="PcmSuite.Tune.TuneView"
+             x:DataType="vm:TuneViewModel">
+
+    <Grid>
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="8">
+
+        <!-- Top bar: menu, the two everyday actions, and what is loaded -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,8">
+            <ToggleButton x:Name="MenuToggle" Content="☰" FontSize="20" Padding="12,4"
+                          VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Button Grid.Column="1" Content="Open BIN..." Click="OnOpenBin" Margin="0,0,8,0"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Content="Save As..." Click="OnSaveAs" IsEnabled="{Binding IsDirty}"
+                        ToolTip.Tip="Write the edited BIN to a new file, correcting its checksums"/>
+                <Button Content="Send to Flash" Click="OnSendToFlash"
+                        IsVisible="{Binding ReadyToFlashPath, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        ToolTip.Tip="Switch to the Flash tab to write the file you just saved (its checksums are valid)"/>
+            </StackPanel>
+            <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding BinName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding XdfName}" Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            <TextBlock Grid.Column="4" Text="● MODIFIED" Foreground="#E8A838" FontWeight="SemiBold"
+                       VerticalAlignment="Center" IsVisible="{Binding IsDirty}"/>
+        </Grid>
+
+        <!-- Slide-out menu over the content (same pattern as the mobile Logger) -->
+        <SplitView x:Name="MenuSplit" Grid.Row="1" DisplayMode="Overlay" PanePlacement="Left" OpenPaneLength="280"
+                   IsPaneOpen="{Binding #MenuToggle.IsChecked, Mode=TwoWay}">
+            <SplitView.Pane>
+                <ScrollViewer>
+                    <StackPanel x:Name="MenuPanel" Spacing="8" Margin="12">
+                        <TextBlock Text="Files" FontWeight="SemiBold" Opacity="0.7"/>
+                        <Button Content="Open XDF..." Click="OnOpenXdf" HorizontalAlignment="Stretch"/>
+                        <Button Content="Auto-detect XDF" Click="OnAutoXdf" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Forget a manually chosen XDF and pick one from the OS ID of the BIN"/>
+
+                        <TextBlock Text="Recent BINs" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"
+                                   IsVisible="{Binding RecentBins.Count}"/>
+                        <ItemsControl ItemsSource="{Binding RecentBins}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Button Click="OnOpenRecent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                            Margin="0,0,0,4" ToolTip.Tip="{Binding}">
+                                        <TextBlock Text="{Binding Converter={x:Static vm:PathNameConverter.Instance}}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="Tools" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"/>
+                        <Button Content="Swap segments..." Click="OnSwapSegments" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Copy whole calibration segments from another BIN into the open one"/>
+                        <Button Content="Undo segment swap" Click="OnUndoSwap" HorizontalAlignment="Stretch"
+                                IsVisible="{Binding CanUndoSwap}"/>
+                        <Button Content="VE wizard..." Click="OnVeWizard" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Suggest corrections for the open table from a Logger log file"/>
+
+                        <TextBlock Text="Checks" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"/>
+                        <Button Content="Check checksums" Click="OnCheckChecksums" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Check the BIN, including unsaved edits, with PCMHammer's own validator"/>
+                        <Button Content="Compare with BIN..." Click="OnCompare" HorizontalAlignment="Stretch"
+                                IsVisible="{Binding !IsComparing}"
+                                ToolTip.Tip="Mark every table and cell that differs from another BIN, such as the stock file"/>
+                        <Button Click="OnClearCompare" HorizontalAlignment="Stretch" IsVisible="{Binding IsComparing}">
+                            <TextBlock TextWrapping="Wrap"><Run Text="Stop comparing with"/> <Run Text="{Binding ReferenceName}" FontWeight="SemiBold"/></TextBlock>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </SplitView.Pane>
+
+            <!-- Three panes. Wide window: tree | editor over details. Narrow window: one at a time. -->
+            <Grid x:Name="Body" ColumnDefinitions="360,8,*" RowDefinitions="*,Auto">
+
+                <Border x:Name="TreePane" BorderThickness="1" BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+                    <Grid RowDefinitions="Auto,Auto,*">
+                        <Grid ColumnDefinitions="*,Auto" Margin="6">
+                            <TextBox PlaceholderText="Search parameters..." Text="{Binding SearchText}"/>
+                            <ComboBox Grid.Column="1" Margin="6,0,0,0" MinWidth="120"
+                                      ItemsSource="{x:Static vm:TuneViewModel.TagFilterChoices}"
+                                      SelectedItem="{Binding TagFilter}"/>
+                        </Grid>
+                        <CheckBox Grid.Row="1" Margin="10,0,0,4" Content="Changed tables only"
+                                  IsVisible="{Binding IsComparing}" IsChecked="{Binding ChangedOnly}"/>
+                        <TreeView Grid.Row="2" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedNode}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate DataType="core:ParameterNode" ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" MinHeight="30">
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="●" Foreground="Orange" VerticalAlignment="Center"
+                                                   IsVisible="{Binding HasChanges}"/>
+                                        <TextBlock Text="⭐" FontSize="11" VerticalAlignment="Center"
+                                                   IsVisible="{Binding IsPinned}"/>
+                                        <TextBlock Text="📝" FontSize="11" VerticalAlignment="Center"
+                                                   IsVisible="{Binding HasNote}"/>
+                                        <Border CornerRadius="3" Padding="5,0" VerticalAlignment="Center"
+                                                Background="{Binding TagColor}" IsVisible="{Binding HasTag}">
+                                            <TextBlock Text="{Binding Tag}" FontSize="10" Foreground="White"/>
+                                        </Border>
+                                    </StackPanel>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="EditorPane" Grid.Column="2" BorderThickness="1" Padding="12"
+                        BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+                    <Grid>
+                    <!-- A binary patch from the XDF, shown instead of a table -->
+                    <Grid RowDefinitions="Auto,Auto,Auto,*" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="{Binding Patch.Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock Grid.Row="1" Text="{Binding Patch.State}" Margin="0,6,0,0" Foreground="#E8A838"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,8">
+                            <Button Content="Apply patch" Click="OnApplyPatch" IsEnabled="{Binding Patch.CanApply}"/>
+                            <Button Content="Take patch back" Click="OnRevertPatch" IsEnabled="{Binding Patch.CanRevert}"
+                                    ToolTip.Tip="Restores the bytes from before the patch (or from the compared BIN)"/>
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="3">
+                            <ItemsControl ItemsSource="{Binding Patch.Entries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:PatchEntryRow">
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                            <TextBlock FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace" Opacity="0.8">
+                                                <Run Text="{Binding Address}"/> <Run Text="{Binding Size}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Data}" TextWrapping="Wrap" Opacity="0.7"
+                                                       FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <Grid RowDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNull}}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Editor.Name}" FontSize="16" FontWeight="SemiBold"
+                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="Undo" Click="OnUndo"
+                                    IsVisible="{Binding Editor.CanUndo}"/>
+                        </Grid>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
+                                    IsVisible="{Binding HasSelectedTable}">
+                            <ToggleButton Content="⭐ Pin" IsChecked="{Binding SelectedPinned}"
+                                          ToolTip.Tip="Keep this table in the Pinned folder at the top of the list"/>
+                            <TextBlock Text="Tag" VerticalAlignment="Center" Opacity="0.7"/>
+                            <ComboBox ItemsSource="{x:Static vm:TuneViewModel.TagChoices}"
+                                      SelectedItem="{Binding SelectedTag}" MinWidth="130"/>
+                            <Button Content="Copy" Click="OnCopyTable" IsVisible="{Binding !Editor.IsFlag}"
+                                    ToolTip.Tip="Copy the table, with its axes, to the clipboard to paste into a spreadsheet"/>
+                            <ToggleButton Content="3D view" IsChecked="{Binding ShowSurface}"
+                                          IsVisible="{Binding Editor.Is2D}"
+                                          ToolTip.Tip="Show this table as a 3D surface"/>
+                        </StackPanel>
+                        <local:SurfaceView x:Name="Surface" Grid.Row="2" Margin="0,10,0,0" MinHeight="260"
+                                           IsVisible="{Binding ShowSurface}"/>
+                        <ScrollViewer x:Name="EditorScroll" Grid.Row="2" Margin="0,10,0,0"
+                                      IsVisible="{Binding !ShowSurface}"
+                                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <ContentControl x:Name="GridHost" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        </ScrollViewer>
+                        <TextBox x:Name="NoteBox" Grid.Row="3" Margin="0,8,0,0" AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="56" MaxHeight="110" PlaceholderText="Notes for this table (kept per BIN)..."
+                                 Text="{Binding SelectedNote}" IsVisible="{Binding HasSelectedTable}"/>
+                    </Grid>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="DetailsPane" Grid.Column="2" Grid.Row="1" BorderThickness="1" Padding="8" Margin="0,8,0,0"
+                        BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+                    <ScrollViewer MaxHeight="170" VerticalScrollBarVisibility="Auto">
+                        <SelectableTextBlock Text="{Binding Details}" TextWrapping="Wrap" Opacity="0.8"
+                                             FontFamily="Consolas, Menlo, DejaVu Sans Mono, monospace"/>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </SplitView>
+
+        <!-- Narrow window only: choose which pane to show (same bottom-tab idea as the Logger) -->
+        <UniformGrid x:Name="NavBar" Grid.Row="2" Rows="1" Margin="0,8,0,0" IsVisible="False">
+            <RadioButton x:Name="NavParams" GroupName="TunePage" Content="Parameters" IsChecked="True"
+                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnNav"/>
+            <RadioButton x:Name="NavEditor" GroupName="TunePage" Content="Editor"
+                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnNav"/>
+            <RadioButton x:Name="NavDetails" GroupName="TunePage" Content="Details"
+                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnNav"/>
+        </UniformGrid>
+
+        <!-- Status -->
+        <TextBlock Grid.Row="3" Margin="0,8,0,0" Text="{Binding Status}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   TextTrimming="CharacterEllipsis"/>
+    </Grid>
+
+    <!-- Dialog-like pages (swap segments, VE wizard, questions) are shown here, over the screen. -->
+    <Grid x:Name="OverlayLayer" IsVisible="False"/>
+    </Grid>
+</UserControl>

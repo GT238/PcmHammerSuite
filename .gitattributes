@@ -1,0 +1,2 @@
+# Keep patches byte-for-byte: they carry the CRLF line endings of the files they patch.
+*.patch -text

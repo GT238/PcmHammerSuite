@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PcmSuite</RootNamespace>
+    <AssemblyName>PcmSuite</AssemblyName>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="FluentAvaloniaUI" />
+  </ItemGroup>
+
+  <!-- PcmHammer's own Avalonia libraries, reused unchanged from the submodule. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\extern\PcmHammer\Apps\UI\Avalonia\PCMHammerAvalonia\PCMHammerAvalonia.csproj" />
+    <ProjectReference Include="..\..\extern\PcmHammer\Apps\UI\Avalonia\PCMLoggerAvalonia\PCMLoggerAvalonia.csproj" />
+  </ItemGroup>
+
+  <!-- Credits tab: PcmSuite's own page, plus PCM Hammer's credits page taken straight from the submodule
+       (Apps/UI/Shared/credits.html is the up-to-date copy shared by its other front ends). -->
+  <ItemGroup>
+    <Content Include="Credits\PcmSuite-credits.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\extern\PcmHammer\Apps\UI\Shared\credits.html" Link="Credits\PcmHammer-credits.html"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Tuning code ported from LS-Studio. -->
+  <ItemGroup>
+    <ProjectReference Include="..\PcmSuite.Tuning.Core\PcmSuite.Tuning.Core.csproj" />
+    <ProjectReference Include="..\PcmSuite.Tuning\PcmSuite.Tuning.csproj" />
+    <ProjectReference Include="..\PcmSuite.Tuning.Views\PcmSuite.Tuning.Views.csproj" />
+  </ItemGroup>
+</Project>

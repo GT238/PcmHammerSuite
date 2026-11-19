@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PcmSuite.MainWindow"
+        Title="PCM Suite (prototype)" Width="1100" Height="700">
+    <DockPanel>
+        <!-- Shell status: says what the hand-off between tabs did. -->
+        <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+            <TextBlock x:Name="ShellStatus" Text="Pick a tab. Only one tab holds the adapter at a time."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Border>
+
+        <TabControl x:Name="Tabs" SelectionChanged="OnTabChanged">
+            <TabItem Header="Flash"><ContentControl x:Name="FlashHost"/></TabItem>
+            <TabItem Header="Logger"><ContentControl x:Name="LoggerHost"/></TabItem>
+            <TabItem Header="Tune"><ContentControl x:Name="TuneHost"/></TabItem>
+            <TabItem Header="Credits"><ContentControl x:Name="CreditsHost"/></TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

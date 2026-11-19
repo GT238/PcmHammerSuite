@@ -1,0 +1,4 @@
+[submodule "extern/PcmHammer"]
+	path = extern/PcmHammer
+	url = https://github.com/PcmHammer/PcmHammer.git
+	branch = develop

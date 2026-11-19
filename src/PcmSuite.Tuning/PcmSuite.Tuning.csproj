@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tuning logic with no user interface: view-models, checksum service, notes store.
+       Any front end (desktop, Android) can use it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PcmSuite.Tune</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PcmSuite.Tuning.Core\PcmSuite.Tuning.Core.csproj" />
+    <!-- PCMHammer's library: FileValidator (checksums) and LogFileReader (Logger CSV files). -->
+    <ProjectReference Include="..\..\extern\PcmHammer\Apps\PcmLibrary\PcmLibrary.csproj" />
+  </ItemGroup>
+</Project>
