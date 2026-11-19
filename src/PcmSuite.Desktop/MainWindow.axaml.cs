@@ -25,7 +25,15 @@ public partial class MainWindow : Window
 
         this.FlashHost.Content = new PCMHammerAvalonia.Views.MainView { DataContext = this.flash };
         this.LoggerHost.Content = new PCMLoggerAvalonia.Views.MobileMainView { DataContext = this.logger };
-        this.tune = new Tune.TuneViewModel { LogFolderProvider = () => this.logger.LogFolder };
+        this.tune = new Tune.TuneViewModel
+        {
+            LogFolderProvider = () => this.logger.LogFolder,
+            ProfilesFolderProvider = () => Tune.LogProfileCatalog.SharedFolder,
+        };
+
+        // One profile folder for the Logger and the Tune tab: put the tuning profiles that ship with PcmSuite into
+        // it (never overwriting a file the user has edited).
+        Tune.LogProfileCatalog.Seed(Path.Combine(AppContext.BaseDirectory, "Profiles"), Tune.LogProfileCatalog.SharedFolder);
         this.tuneView = new Tune.TuneView { DataContext = this.tune };
         this.TuneHost.Content = this.tuneView;
         this.CreditsHost.Content = new CreditsView();
@@ -49,6 +57,19 @@ public partial class MainWindow : Window
             }
 
             this.Tabs.SelectedIndex = FlashTab;
+        };
+
+        // Logging profiles: the Logger opens a profile through its own file picker and cannot be handed a path,
+        // so the shell switches tabs and puts the profile's path on the clipboard, as for Send to Flash.
+        this.tune.UseProfileRequested += async path =>
+        {
+            this.loggerProfileHint = path;
+            if (this.Clipboard != null)
+            {
+                await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(this.Clipboard, path);
+            }
+
+            this.Tabs.SelectedIndex = LoggerTab;
         };
 
         // Closing the window must not lose unsaved tuning edits, must not kill a flash operation half-way through,
@@ -164,9 +185,18 @@ public partial class MainWindow : Window
     }
 
     private string? flashFileHint;
+    private string? loggerProfileHint;
 
     private string ArrivalHint(int tab)
     {
+        if (tab == LoggerTab && this.loggerProfileHint != null)
+        {
+            string hint = $"Profile '{Path.GetFileNameWithoutExtension(this.loggerProfileHint)}' is ready: its path is on the clipboard. " +
+                          "Press Connect, then Params → Open Profile and paste the path into the file name box.";
+            this.loggerProfileHint = null;
+            return hint;
+        }
+
         if (tab == FlashTab && this.flashFileHint != null)
         {
             string hint = $"Ready to flash {Path.GetFileName(this.flashFileHint)}: its path is on the clipboard " +

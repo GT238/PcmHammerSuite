@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LogProfile>
+    <!-- A short list for fast sampling: engine speed, MAP, throttle and all four fuel trims, with the commanded air/fuel ratio. Good for a quick check of where the engine runs lean or rich. -->
+    <PidParameters>
+        <PidParameter id="EngineSpeed" units="RPM" zoom="False" />
+        <PidParameter id="MAPSensor" units="kPa" zoom="False" />
+        <PidParameter id="ThrottlePosition" units="%" zoom="False" />
+        <PidParameter id="ShortTermFTLeftBank" units="%" zoom="False" />
+        <PidParameter id="LongTermFTLeftBank" units="%" zoom="False" />
+        <PidParameter id="ShortTermFTRightBank" units="%" zoom="False" />
+        <PidParameter id="LongTermFTRightBank" units="%" zoom="False" />
+        <PidParameter id="TargetAFRatio" units="AFR" zoom="False" />
+    </PidParameters>
+    <RamParameters />
+    <MathParameters />
+</LogProfile>

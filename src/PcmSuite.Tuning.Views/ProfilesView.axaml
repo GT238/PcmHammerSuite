@@ -1,0 +1,50 @@
+<local:OverlayPage xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PcmSuite.Tune"
+        x:Class="PcmSuite.Tune.ProfilesView">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Logging profiles" FontSize="16" FontWeight="SemiBold"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                       Text="One shared folder for the Logger and the Tune tab. The tuning profiles below come with PcmSuite; any profile you save into this folder from the Logger (Params → Save Profile) appears here too. To use one, pick it here, then in the Logger press Connect and Params → Open Profile."/>
+            <TextBlock x:Name="FolderText" Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,10">
+            <ItemsControl x:Name="List">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="local:LogProfileInfo">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ControlElevationBorderBrush}" Padding="4,10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="3">
+                                    <TextBlock FontWeight="SemiBold">
+                                        <Run Text="{Binding Name}"/> <Run Text="{Binding CountText}" Foreground="Gray" FontWeight="Normal" FontSize="12"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.85"/>
+                                    <TextBlock Text="{Binding Parameters}" TextWrapping="Wrap" Opacity="0.6" FontSize="12"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Use in Logger" VerticalAlignment="Top" Margin="12,0,0,0"
+                                        Click="OnUse"
+                                        ToolTip.Tip="Copies the file's path and switches to the Logger tab"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <WrapPanel Grid.Row="2" Margin="0,0,0,8">
+            <Button Content="Add a profile file..." Click="OnAdd" Margin="0,0,8,6"
+                    ToolTip.Tip="Copy a .LogProfile from somewhere else into the shared folder"/>
+            <Button Content="Open folder" Click="OnOpenFolder" Margin="0,0,8,6"/>
+            <Button Content="Copy folder path" Click="OnCopyFolder" Margin="0,0,0,6"
+                    ToolTip.Tip="Paste it into the Logger's Save Profile or Open Profile file picker"/>
+        </WrapPanel>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="Empty" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8"/>
+            <Button Grid.Column="1" Content="Close" Click="OnClose"/>
+        </Grid>
+    </Grid>
+</local:OverlayPage>

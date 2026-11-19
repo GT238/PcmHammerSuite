@@ -469,6 +469,18 @@ public partial class TuneView : UserControl
         }
     }
 
+    private async void OnProfiles(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null)
+        {
+            return;
+        }
+
+        string folder = vm.ProfilesFolderProvider?.Invoke() ?? LogProfileCatalog.SharedFolder;
+        await this.ShowOverlayAsync(new ProfilesView(folder, vm.UseProfile));
+    }
+
     private async void OnUndoSwap(object? sender, RoutedEventArgs e)
     {
         if (this.ViewModel != null)

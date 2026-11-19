@@ -32,6 +32,11 @@
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Logging profiles for tuning tasks (PCM Hammer's .LogProfile format), offered from the Tune tab. -->
+  <ItemGroup>
+    <Content Include="Profiles\*.LogProfile" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Tuning code ported from LS-Studio. -->
   <ItemGroup>
     <ProjectReference Include="..\PcmSuite.Tuning.Core\PcmSuite.Tuning.Core.csproj" />

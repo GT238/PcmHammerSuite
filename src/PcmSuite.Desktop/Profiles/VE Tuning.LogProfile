@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LogProfile>
+    <!-- Log a speed-density drive to find where the VE table is wrong. Feed the log to the Tune tab's VE wizard: it uses engine speed, MAP and the fuel trims. Drive steadily across the table's RPM and kPa range; closed-loop operation only. -->
+    <PidParameters>
+        <PidParameter id="EngineSpeed" units="RPM" zoom="False" />
+        <PidParameter id="MAPSensor" units="kPa" zoom="False" />
+        <PidParameter id="ThrottlePosition" units="%" zoom="False" />
+        <PidParameter id="MAFSensor" units="g/s" zoom="False" />
+        <PidParameter id="ShortTermFTLeftBank" units="%" zoom="False" />
+        <PidParameter id="LongTermFTLeftBank" units="%" zoom="False" />
+        <PidParameter id="ShortTermFTRightBank" units="%" zoom="False" />
+        <PidParameter id="LongTermFTRightBank" units="%" zoom="False" />
+        <PidParameter id="TargetAFRatio" units="AFR" zoom="False" />
+        <PidParameter id="ECTSensor" units="°F" zoom="False" />
+        <PidParameter id="IATSensor" units="°F" zoom="False" />
+    </PidParameters>
+    <RamParameters />
+    <MathParameters />
+</LogProfile>

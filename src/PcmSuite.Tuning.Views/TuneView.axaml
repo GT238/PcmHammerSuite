@@ -59,6 +59,8 @@
                                 ToolTip.Tip="Copy whole calibration segments from another BIN into the open one"/>
                         <Button Content="Undo segment swap" Click="OnUndoSwap" HorizontalAlignment="Stretch"
                                 IsVisible="{Binding CanUndoSwap}"/>
+                        <Button Content="Logging profiles..." Click="OnProfiles" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Ready-made lists of what to log for VE, fuel trim, spark and MAF tuning"/>
                         <Button Content="VE wizard..." Click="OnVeWizard" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Suggest corrections for the open table from a Logger log file"/>
 

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LogProfile>
+    <!-- For spark tuning: ignition timing against knock retard, with the load and temperature that explain it. Watch knock retard under load; the temperatures show heat soak. -->
+    <PidParameters>
+        <PidParameter id="EngineSpeed" units="RPM" zoom="False" />
+        <PidParameter id="MAPSensor" units="kPa" zoom="False" />
+        <PidParameter id="ThrottlePosition" units="%" zoom="False" />
+        <PidParameter id="MAFSensor" units="g/s" zoom="False" />
+        <PidParameter id="IgnitionTiming" units="°" zoom="False" />
+        <PidParameter id="KnockRetardDegrees" units="°" zoom="False" />
+        <PidParameter id="ECTSensor" units="°F" zoom="False" />
+        <PidParameter id="IATSensor" units="°F" zoom="False" />
+        <PidParameter id="VehicleSpeedSensor" units="mph" zoom="False" />
+    </PidParameters>
+    <RamParameters />
+    <MathParameters />
+</LogProfile>

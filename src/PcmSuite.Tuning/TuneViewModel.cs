@@ -125,6 +125,16 @@ public partial class TuneViewModel : ObservableObject
     /// <summary>Where the Logger writes its log files, so the VE wizard can offer the newest one.</summary>
     public Func<string?>? LogFolderProvider { get; set; }
 
+    // ---- Logging profiles for tuning tasks ----
+
+    /// <summary>The folder with the .LogProfile files offered for tuning tasks.</summary>
+    public Func<string?>? ProfilesFolderProvider { get; set; }
+
+    /// <summary>Raised when the user picks a profile; the shell hands it to the Logger tab.</summary>
+    public event Action<string>? UseProfileRequested;
+
+    public void UseProfile(string path) => this.UseProfileRequested?.Invoke(path);
+
     // ---- Hand-off to the Flash tab ----
 
     /// <summary>The saved BIN that passed PCMHammer's checksum validation and has no edits since; null otherwise.</summary>
