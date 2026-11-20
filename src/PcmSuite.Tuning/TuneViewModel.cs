@@ -238,6 +238,7 @@ public partial class TuneViewModel : ObservableObject
 
         this.CanUndoSwap = true;
         this.IsDirty = true;
+        this.AppendChangeLog($"Segment swap from {donorName}: " + string.Join(", ", segments.Select(s => s.Name)));
         await this.AfterBytesChangedAsync();
         this.Status = $"Copied {segments.Count} segment(s) from {donorName} into the open BIN (not saved yet). " +
                       "Use Save As to write it with corrected checksums, or Undo segment swap.";
@@ -260,6 +261,7 @@ public partial class TuneViewModel : ObservableObject
 
         // The BIN differs from whatever was saved last, so it counts as modified (and is no longer "ready to flash").
         this.IsDirty = true;
+        this.AppendChangeLog("Segment swap undone");
         await this.AfterBytesChangedAsync();
         this.Status = "Segment swap undone (not saved yet).";
     }
@@ -296,6 +298,7 @@ public partial class TuneViewModel : ObservableObject
             {
                 this.IsDirty = true;
                 this.Status = "Patch changed: " + node.Patch.Name + " (not saved yet)";
+                this.AppendChangeLog("Patch changed: " + node.Patch.Name);
             });
             this.patchViewModels[node.Patch] = vm;
         }
@@ -310,6 +313,11 @@ public partial class TuneViewModel : ObservableObject
     // ---- Pins, tags and notes ----
 
     private readonly TuneNotesStore store = new();
+
+    // Notes live in the open project's folder; pins and tags stay in the app-wide store.
+    private TuneNotesStore? projectNotes;
+
+    private TuneNotesStore Notes => this.projectNotes ?? this.store;
     private bool rebuildingTree;
     private bool loadingPanel;
 
@@ -368,7 +376,7 @@ public partial class TuneViewModel : ObservableObject
         }
 
         string name = this.noteTable;
-        this.store.SetNote(this.BinPath, name, value);
+        this.Notes.SetNote(this.BinPath, name, value);
         bool has = !string.IsNullOrWhiteSpace(value);
         this.ForTable(name, leaf => leaf.HasNote = has);
     }
@@ -384,7 +392,7 @@ public partial class TuneViewModel : ObservableObject
             string tag = name == null ? string.Empty : this.store.GetTag(name);
             this.SelectedTag = tag.Length == 0 ? "(none)" : tag;
             this.noteTable = name;
-            this.SelectedNote = name == null ? string.Empty : this.store.GetNote(this.BinPath, name);
+            this.SelectedNote = name == null ? string.Empty : this.Notes.GetNote(this.BinPath, name);
         }
         finally
         {
@@ -411,7 +419,7 @@ public partial class TuneViewModel : ObservableObject
             string name = leaf.Table!.Name;
             leaf.IsPinned = this.store.IsPinned(name);
             leaf.Tag = this.store.GetTag(name);
-            leaf.HasNote = this.store.GetNote(this.BinPath, name).Length > 0;
+            leaf.HasNote = this.Notes.GetNote(this.BinPath, name).Length > 0;
         }
 
         this.RebuildPinned(null);
@@ -599,6 +607,7 @@ public partial class TuneViewModel : ObservableObject
         {
             Reference = this.ReferenceData,
         };
+        editor.Edited += record => this.LogEdit(editor, record);
         editor.DataChanged += () =>
         {
             this.IsDirty = true;
@@ -639,7 +648,9 @@ public partial class TuneViewModel : ObservableObject
 
             if (this.BinPath != null)
             {
-                this.store.CopyNotes(this.BinPath, path);
+                this.Notes.CopyNotes(this.BinPath, path);
+                this.AppendChangeLog("Saved as " + Path.GetFileName(path));
+                this.CopyChangeLog(this.BinPath, path);
             }
 
             this.BinPath = path;
@@ -691,6 +702,114 @@ public partial class TuneViewModel : ObservableObject
         }
     }
 
+    // ---- Change log: one line per edit, in a .changes file beside the BIN ----
+
+    /// <summary>The change log for the open BIN (it may not exist yet).</summary>
+    public string? ChangeLogPath =>
+        this.CurrentProject != null ? this.CurrentProject.ChangeLogFile
+        : this.BinPath == null ? null
+        : Path.ChangeExtension(this.BinPath, ".changes");
+
+    private void LogEdit(ValueEditorViewModel editor, EditRecord record)
+    {
+        if (record.Cells.Count == 0 && record.Kind != "Edit")
+        {
+            return;
+        }
+
+        System.Text.StringBuilder text = new();
+        text.Append(editor.Name).Append(" | ").Append(record.Kind).Append(": ").Append(record.Label);
+        if (record.Cells.Count > 0)
+        {
+            text.Append(" | ").Append(record.Cells.Count).Append(record.Cells.Count == 1 ? " cell" : " cells");
+        }
+
+        // Spell out the cells for small edits; a big block would drown the log.
+        const int detailLimit = 24;
+        foreach (CellChange cell in record.Cells.Take(detailLimit))
+        {
+            text.AppendLine().Append("    ")
+                .Append(editor.RowLabel(cell.Row)).Append(" x ").Append(editor.ColumnLabel(cell.Column))
+                .Append("   ").Append(editor.Table.FormatValue(cell.Old)).Append(" -> ").Append(editor.Table.FormatValue(cell.New));
+        }
+
+        if (record.Cells.Count > detailLimit)
+        {
+            text.AppendLine().Append("    ... and ").Append(record.Cells.Count - detailLimit).Append(" more");
+        }
+
+        this.AppendChangeLog(text.ToString());
+    }
+
+    private void AppendChangeLog(string text)
+    {
+        string? log = this.ChangeLogPath;
+        if (log == null)
+        {
+            return;
+        }
+
+        try
+        {
+            // One log for the whole project, so each line says which BIN it was about.
+            string bin = this.CurrentProject != null && this.BinPath != null ? Path.GetFileName(this.BinPath) + " | " : string.Empty;
+            File.AppendAllText(log, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} | {bin}{text}{Environment.NewLine}");
+        }
+        catch
+        {
+            // A read-only folder must not stop editing; the log is a convenience.
+        }
+    }
+
+    /// <summary>A BIN saved under a new name keeps its history.</summary>
+    private void CopyChangeLog(string fromBin, string toBin)
+    {
+        if (this.CurrentProject != null)
+        {
+            return;   // a project keeps one log for all its BINs
+        }
+
+        try
+        {
+            string from = Path.ChangeExtension(fromBin, ".changes");
+            string to = Path.ChangeExtension(toBin, ".changes");
+            if (File.Exists(from) && !string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(from, to, true);
+            }
+        }
+        catch
+        {
+            // Best effort.
+        }
+    }
+
+    // ---- Notes export ----
+
+    /// <summary>Write every note for the open BIN to a text file. Returns how many tables had notes.</summary>
+    public async Task<int> ExportNotesAsync(string path)
+    {
+        IReadOnlyList<KeyValuePair<string, string>> notes = this.Notes.NotesFor(this.BinPath);
+        System.Text.StringBuilder text = new();
+        text.AppendLine("Tuning notes for " + this.BinName);
+        text.AppendLine("Exported " + DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+        text.AppendLine(new string('=', 60));
+        text.AppendLine();
+        foreach (KeyValuePair<string, string> note in notes)
+        {
+            text.AppendLine(note.Key);
+            text.AppendLine(new string('-', Math.Min(60, note.Key.Length)));
+            text.AppendLine(note.Value);
+            text.AppendLine();
+        }
+
+        await File.WriteAllTextAsync(path, text.ToString());
+        this.Status = notes.Count == 0
+            ? "There are no notes for this BIN yet; wrote an empty file."
+            : $"Exported {notes.Count} note(s) to {Path.GetFileName(path)}.";
+        return notes.Count;
+    }
+
     // ---- Recent files ----
 
     private readonly AppSettings settings = AppSettings.Load();
@@ -700,8 +819,18 @@ public partial class TuneViewModel : ObservableObject
     /// <summary>Folder the file pickers should start in: where the last BIN came from.</summary>
     public string? LastFolder =>
         this.BinPath != null ? Path.GetDirectoryName(this.BinPath)
+        : this.CurrentProject != null ? this.ProjectBinFolder(this.CurrentProject)
         : this.settings.RecentBins.Count > 0 ? Path.GetDirectoryName(this.settings.RecentBins[0])
         : null;
+
+    /// <summary>Where a project's BINs are most likely to be: saved tunes if there are any, otherwise reads.</summary>
+    private string ProjectBinFolder(ProjectInfo project) =>
+        Directory.Exists(project.EditsFolder) && Directory.GetFiles(project.EditsFolder, "*.bin").Length > 0
+            ? project.EditsFolder
+            : project.ReadsFolder;
+
+    /// <summary>Where Save As should start: the project's saved-tunes folder, or null outside a project.</summary>
+    public string? SaveFolder => this.CurrentProject?.EditsFolder;
 
     private void LoadRecent()
     {
@@ -728,6 +857,317 @@ public partial class TuneViewModel : ObservableObject
     public TuneViewModel()
     {
         this.LoadRecent();
+        if (ProjectInfo.MigrateLegacyRoot())
+        {
+            this.Status = "Copied your LS-Studio projects and XDF library to " + ProjectInfo.DefaultProjectsRoot + " (the old folder was left as it was).";
+        }
+    }
+
+    // ---- Projects: one folder per vehicle holding reads, saved tunes, logs, the change log and notes ----
+
+    [ObservableProperty] private ProjectInfo? _currentProject;
+
+    /// <summary>Raised when a project is opened or closed, so the shell can point the Logger at the project's log folder.</summary>
+    public event Action<ProjectInfo?>? ProjectChanged;
+
+    public bool HasProject => this.CurrentProject != null;
+
+    public string ProjectTitle => this.CurrentProject == null ? "No project" : this.CurrentProject.DisplayName;
+
+    /// <summary>Inside a project the file button adds a BIN to the project; outside it just opens one.</summary>
+    public string OpenBinLabel => this.HasProject ? "Add BIN..." : "Open BIN...";
+
+    partial void OnCurrentProjectChanged(ProjectInfo? value)
+    {
+        this.OnPropertyChanged(nameof(this.HasProject));
+        this.OnPropertyChanged(nameof(this.ProjectTitle));
+        this.OnPropertyChanged(nameof(this.OpenBinLabel));
+        this.WatchReads(value);
+    }
+
+    /// <summary>Raised when the project was created for reading from the PCM: the shell takes you to the Flash tab.</summary>
+    public event Action<ProjectInfo>? FlashReadRequested;
+
+    public void RequestFlashRead(ProjectInfo project) => this.FlashReadRequested?.Invoke(project);
+
+    /// <summary>Raised when a finished BIN appears in the project's reads folder (for example a read from the Flash tab).</summary>
+    public event Action<string>? NewReadDetected;
+
+    private FileSystemWatcher? readsWatcher;
+    private readonly HashSet<string> knownReads = new(StringComparer.OrdinalIgnoreCase);
+
+    private void WatchReads(ProjectInfo? project)
+    {
+        this.readsWatcher?.Dispose();
+        this.readsWatcher = null;
+        this.knownReads.Clear();
+        if (project == null)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(project.ReadsFolder);
+            foreach (string file in Directory.GetFiles(project.ReadsFolder, "*.bin"))
+            {
+                this.knownReads.Add(file);
+            }
+
+            FileSystemWatcher watcher = new(project.ReadsFolder, "*.bin")
+            {
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
+                EnableRaisingEvents = true,
+            };
+            watcher.Created += (_, e) => _ = this.ReadSettledAsync(project, e.FullPath);
+            watcher.Renamed += (_, e) => _ = this.ReadSettledAsync(project, e.FullPath);
+            this.readsWatcher = watcher;
+        }
+        catch
+        {
+            // No watching (for example a network folder): reads can still be added with Add BIN.
+        }
+    }
+
+    /// <summary>A read takes a while to write: wait until its size stops changing, then announce it.</summary>
+    private async Task ReadSettledAsync(ProjectInfo project, string path)
+    {
+        if (!this.knownReads.Add(path))
+        {
+            return;
+        }
+
+        long last = -1;
+        int stable = 0;
+        for (int i = 0; i < 120 && stable < 2; i++)
+        {
+            await Task.Delay(1000);
+            try
+            {
+                long length = new FileInfo(path).Length;
+                stable = length > 0 && length == last ? stable + 1 : 0;
+                last = length;
+            }
+            catch
+            {
+                stable = 0;
+            }
+        }
+
+        if (stable < 2 || !ReferenceEquals(project, this.CurrentProject))
+        {
+            return;
+        }
+
+        if (project.BaseBinName == null)
+        {
+            // The first read of a project is its untouched starting point.
+            project.BaseBinName = Path.GetRelativePath(project.ProjectFolder, path);
+            try { project.Save(); } catch { }
+        }
+
+        this.NewReadDetected?.Invoke(path);
+    }
+
+    /// <summary>
+    /// Add a BIN to the open project: a file from elsewhere is copied into reads (the original is left alone) and the
+    /// copy is opened. Without a project it simply opens the file.
+    /// </summary>
+    public async Task ImportBinAsync(string path)
+    {
+        if (this.CurrentProject is not { } project
+            || path.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            await this.OpenBinAsync(path);
+            return;
+        }
+
+        try
+        {
+            string dest = Path.Combine(project.ReadsFolder, Path.GetFileName(path));
+            for (int n = 2; File.Exists(dest); n++)
+            {
+                dest = Path.Combine(project.ReadsFolder, $"{Path.GetFileNameWithoutExtension(path)}_{n}{Path.GetExtension(path)}");
+            }
+
+            this.knownReads.Add(dest);   // our own copy, not a new read from the PCM
+            File.Copy(path, dest, false);
+            if (project.BaseBinName == null)
+            {
+                project.BaseBinName = Path.GetRelativePath(project.ProjectFolder, dest);
+                project.Save();
+            }
+
+            await this.OpenBinAsync(dest);
+            this.Status = $"Copied {Path.GetFileName(path)} into the project's reads folder and opened the copy. " + this.Status;
+        }
+        catch (Exception ex)
+        {
+            this.Status = "Could not add the BIN to the project: " + ex.Message;
+        }
+    }
+
+    /// <summary>Make the project's folder (named from its name, made unique if needed) and its project.json.</summary>
+    public ProjectInfo CreateProject(ProjectInfo draft, string? startBin = null)
+    {
+        string baseName = ProjectInfo.SafeFolderName(draft.DisplayName);
+        if (baseName.Length == 0)
+        {
+            baseName = "Project";
+        }
+
+        string folder = Path.Combine(ProjectInfo.DefaultProjectsRoot, baseName);
+        for (int n = 2; Directory.Exists(folder); n++)
+        {
+            folder = Path.Combine(ProjectInfo.DefaultProjectsRoot, baseName + "_" + n);
+        }
+
+        draft.ProjectFolder = folder;
+        draft.Created = DateTime.Now;
+        draft.EnsureFolders();
+
+        // A BIN to start from is copied into reads as the untouched base; the original is left where it was.
+        if (startBin != null && File.Exists(startBin))
+        {
+            string copy = ProjectInfo.CopyIn(startBin, draft.ReadsFolder);
+            draft.BaseBinName = Path.GetRelativePath(folder, copy);
+            draft.LastBinName = draft.BaseBinName;
+        }
+
+        draft.Save();
+        return draft;
+    }
+
+    /// <summary>Make an existing folder (for example one made by hand) into a project, leaving its files where they are.</summary>
+    public ProjectInfo AdoptFolder(string folder)
+    {
+        ProjectInfo project = new()
+        {
+            Name = Path.GetFileName(folder.TrimEnd('\\', '/')).Replace('_', ' ').Trim(),
+            ProjectFolder = folder,
+        };
+        project.EnsureFolders();
+        project.Save();
+        return project;
+    }
+
+    /// <summary>The file name Save As should suggest: the project's name and the next free version number.</summary>
+    public string SuggestedSaveName()
+    {
+        string stem = Path.GetFileNameWithoutExtension(this.BinPath ?? "tune");
+        stem = System.Text.RegularExpressions.Regex.Replace(stem, @"(_v\d+|_edit)+$", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (this.CurrentProject is not { } project)
+        {
+            return stem + "_edit.bin";
+        }
+
+        stem = ProjectInfo.SafeFolderName(project.DisplayName);
+        int next = 1;
+        try
+        {
+            foreach (string file in Directory.GetFiles(project.EditsFolder, "*.bin"))
+            {
+                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(
+                    Path.GetFileNameWithoutExtension(file),
+                    "^" + System.Text.RegularExpressions.Regex.Escape(stem) + @"_v(\d+)$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (m.Success && int.TryParse(m.Groups[1].Value, out int version))
+                {
+                    next = Math.Max(next, version + 1);
+                }
+            }
+        }
+        catch
+        {
+            // The first version name is still a fine suggestion.
+        }
+
+        return $"{stem}_v{next}.bin";
+    }
+
+    public void OpenProject(ProjectInfo project)
+    {
+        project.EnsureFolders();   // projects made by LS-Studio have no logs folder yet
+        this.CurrentProject = project;
+        this.projectNotes = new TuneNotesStore(project.NotesFile, keyByFileName: true);
+        this.settings.LastProject = project.ProjectFolder;
+        this.settings.Save();
+        this.RefreshNotesAfterProjectChange();
+        this.ProjectChanged?.Invoke(project);
+        this.Status = $"Project '{project.DisplayName}' is open. Its reads, saved tunes, logs, change log and notes are in {project.ProjectFolder}.";
+    }
+
+    /// <summary>Open a project and, if it has a BIN, open that too (the last one used, else the newest tune or read).</summary>
+    public async Task OpenProjectAsync(ProjectInfo project)
+    {
+        this.OpenProject(project);
+        if (project.FindBestBin() is { } bin)
+        {
+            string note = this.Status;
+            await this.OpenBinAsync(bin);
+            this.Status = $"Project '{project.DisplayName}': " + this.Status;
+        }
+        else
+        {
+            this.Status = $"Project '{project.DisplayName}' has no BIN yet. Read one from the PCM on the Flash tab (save it in {project.ReadsFolder}), or use Add BIN.";
+        }
+    }
+
+    public void CloseProject()
+    {
+        this.CurrentProject = null;
+        this.projectNotes = null;
+        this.settings.LastProject = string.Empty;
+        this.settings.Save();
+        this.RefreshNotesAfterProjectChange();
+        this.ProjectChanged?.Invoke(null);
+        this.Status = "Project closed.";
+    }
+
+    /// <summary>Open the project that was open when the app last closed (does not open its BIN).</summary>
+    public async Task RestoreLastProjectAsync()
+    {
+        if (this.settings.LastProject.Length > 0 && ProjectInfo.Load(this.settings.LastProject) is { } project)
+        {
+            await this.OpenProjectAsync(project);
+        }
+    }
+
+    private void RefreshNotesAfterProjectChange()
+    {
+        if (this.allCategories.Count > 0)
+        {
+            this.ApplyMeta();
+            this.RefreshPanel(this.SelectedNode);
+        }
+    }
+
+    /// <summary>Remember which BIN (and XDF) the project was last used with.</summary>
+    private void NoteProjectFiles(string? binPath, string? xdfPath)
+    {
+        if (this.CurrentProject is not { } project)
+        {
+            return;
+        }
+
+        try
+        {
+            if (binPath != null && binPath.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                project.LastBinName = Path.GetRelativePath(project.ProjectFolder, binPath);
+            }
+
+            if (xdfPath != null)
+            {
+                project.XdfFileName = Path.GetFileName(xdfPath);
+            }
+
+            project.Save();
+        }
+        catch
+        {
+            // Not being able to update project.json must not stop the BIN from opening.
+        }
     }
 
     /// <summary>
@@ -759,13 +1199,14 @@ public partial class TuneViewModel : ObservableObject
     {
         this.ResetLoadedState();
         this.RememberRecent(path);
+        this.NoteProjectFiles(path, null);
         this.BinPath = path;
         this.BinName = Path.GetFileName(path);
         this.XdfPath = null;
         this.XdfName = "Searching...";
         this.Status = "BIN loaded: " + this.BinName + " - searching for a matching XDF...";
 
-        string? xdf = await DetectXdfAsync(path);
+        string? xdf = await DetectXdfAsync(path, this.CurrentProject?.ProjectFolder);
         if (xdf == null)
         {
             this.XdfName = "None found";
@@ -786,8 +1227,27 @@ public partial class TuneViewModel : ObservableObject
         }
 
         this.XdfPath = xdf;
+        this.NoteProjectFiles(null, xdf);
         this.XdfName = Path.GetFileName(xdf) + " (auto-detected)";
         await this.LoadAsync();
+        await this.CompareToProjectBaseAsync();
+    }
+
+    /// <summary>In a project, mark every difference from its untouched base BIN as soon as another BIN is open.</summary>
+    private async Task CompareToProjectBaseAsync()
+    {
+        if (this.CurrentProject?.BaseBinPath is not { } baseBin || this.BinPath == null || this.BinData == null
+            || string.Equals(Path.GetFullPath(baseBin), Path.GetFullPath(this.BinPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        string before = this.Status;
+        await this.CompareAsync(baseBin);
+        if (!this.IsComparing)
+        {
+            this.Status = before;   // a different-sized base cannot be compared; say nothing more
+        }
     }
 
     /// <summary>Forget a manually chosen XDF and let the BIN's OS ID pick one again.</summary>
@@ -911,12 +1371,12 @@ public partial class TuneViewModel : ObservableObject
         }
     }
 
-    private static Task<string?> DetectXdfAsync(string binPath) => Task.Run(() =>
+    private static Task<string?> DetectXdfAsync(string binPath, string? projectFolder) => Task.Run(() =>
     {
         try
         {
             byte[] bin = File.ReadAllBytes(binPath);
-            string?[] folders = { Path.GetDirectoryName(binPath), ProjectInfo.XdfLibraryFolder };
+            string?[] folders = { Path.GetDirectoryName(binPath), projectFolder, ProjectInfo.XdfLibraryFolder };
             foreach (string? folder in folders)
             {
                 if (folder == null || !Directory.Exists(folder))

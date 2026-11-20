@@ -1,0 +1,47 @@
+<local:OverlayPage xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PcmSuite.Tune"
+        xmlns:core="using:PcmSuite.Tuning.Core.Models"
+        x:Class="PcmSuite.Tune.ProjectsView">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Projects" FontSize="16" FontWeight="SemiBold"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                       Text="One folder per vehicle holds its reads, saved tunes, logger recordings, change log and notes. While a project is open, the Tuner saves there and the Logger records there."/>
+            <TextBlock x:Name="RootText" Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,10">
+            <ItemsControl x:Name="List">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="core:ProjectInfo">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ControlElevationBorderBrush}" Padding="4,10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Summary}" Opacity="0.85" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding ProjectFolder}" Opacity="0.55" FontSize="12" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Open" VerticalAlignment="Top" Margin="12,0,0,0" Click="OnOpen"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <WrapPanel Grid.Row="2" Margin="0,0,0,8">
+            <Button Content="New project..." Click="OnNew" Margin="0,0,8,6"/>
+            <Button Content="Open a project folder..." Click="OnBrowse" Margin="0,0,8,6"
+                    ToolTip.Tip="Pick a folder that contains a project.json, for example one copied from another computer"/>
+            <Button Content="Open projects folder" Click="OnOpenRoot" Margin="0,0,8,6"/>
+            <Button x:Name="CloseProjectButton" Content="Close current project" Click="OnCloseProject" Margin="0,0,0,6"/>
+        </WrapPanel>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="Message" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8"/>
+            <Button Grid.Column="1" Content="Close" Click="OnClose"/>
+        </Grid>
+    </Grid>
+</local:OverlayPage>

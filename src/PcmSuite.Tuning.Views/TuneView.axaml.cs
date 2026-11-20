@@ -32,6 +32,7 @@ public partial class TuneView : UserControl
         }
 
         this.SizeChanged += (_, e) => this.ApplyLayout(e.NewSize.Width);
+        this.AttachedToVisualTree += (_, _) => this.WatchForReads();
         this.EditorScroll.ScrollChanged += (_, _) => this.UpdateFrozenHeaders();
 
         // The grid takes the keyboard (arrows, +/-, Ctrl+C/V/Z/Y) and the mouse (drag to select).
@@ -834,7 +835,7 @@ public partial class TuneView : UserControl
         string? path = await this.PickFileAsync("Open BIN file", "BIN files", "*.bin", "*.BIN");
         if (path != null && this.ViewModel != null)
         {
-            await this.ViewModel.OpenBinAsync(path);
+            await this.ViewModel.ImportBinAsync(path);
         }
     }
 
@@ -931,6 +932,65 @@ public partial class TuneView : UserControl
         }
     }
 
+    private TuneViewModel? watching;
+
+    private void WatchForReads()
+    {
+        if (this.ViewModel == null || ReferenceEquals(this.watching, this.ViewModel))
+        {
+            return;
+        }
+
+        this.watching = this.ViewModel;
+        this.ViewModel.NewReadDetected += path =>
+            Dispatcher.UIThread.Post(async () => await this.OfferNewReadAsync(path));
+    }
+
+    /// <summary>A read finished in the project's reads folder: offer to open it.</summary>
+    private async Task OfferNewReadAsync(string path)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null)
+        {
+            return;
+        }
+
+        string warning = vm.IsDirty ? " Your unsaved edits to the open BIN would be lost." : string.Empty;
+        if (await this.ConfirmAsync("New read", $"{Path.GetFileName(path)} has arrived in the project's reads folder. Open it in the Tuner?{warning}", "Open it"))
+        {
+            await vm.OpenBinAsync(path);
+        }
+    }
+
+    private async void OnProjects(object? sender, RoutedEventArgs e)
+    {
+        if (this.ViewModel == null)
+        {
+            return;
+        }
+
+        ProjectsView page = new(this.ViewModel) { Host = this.ShowOverlayAsync };
+        await this.ShowOverlayAsync(page);
+    }
+
+    private async void OnOpenProjectFolder(object? sender, RoutedEventArgs e)
+    {
+        string? folder = this.ViewModel?.CurrentProject?.ProjectFolder;
+        if (folder == null || TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        try
+        {
+            await top.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(folder));
+        }
+        catch (Exception ex)
+        {
+            this.ViewModel!.Status = "Could not open the project folder: " + ex.Message;
+        }
+    }
+
     private async void OnProfiles(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;
@@ -956,6 +1016,68 @@ public partial class TuneView : UserControl
     private void OnRevertPatch(object? sender, RoutedEventArgs e) => this.ViewModel?.Patch?.Revert();
 
     private void OnClearCompare(object? sender, RoutedEventArgs e) => this.ViewModel?.ClearComparison();
+
+    private async void OnOpenChangeLog(object? sender, RoutedEventArgs e)
+    {
+        string? log = this.ViewModel?.ChangeLogPath;
+        if (this.ViewModel == null || log == null || !File.Exists(log))
+        {
+            if (this.ViewModel != null)
+            {
+                this.ViewModel.Status = "No edits have been logged for this BIN yet.";
+            }
+
+            return;
+        }
+
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is { } top)
+            {
+                await top.Launcher.LaunchFileInfoAsync(new FileInfo(log));
+            }
+        }
+        catch (Exception ex)
+        {
+            this.ViewModel.Status = "Could not open the change log (" + log + "): " + ex.Message;
+        }
+    }
+
+    private async void OnExportNotes(object? sender, RoutedEventArgs e)
+    {
+        TopLevel? top = TopLevel.GetTopLevel(this);
+        if (top == null || this.ViewModel == null)
+        {
+            return;
+        }
+
+        if (this.ViewModel.BinPath == null)
+        {
+            this.ViewModel.Status = "Open a BIN first.";
+            return;
+        }
+
+        string baseName = Path.GetFileNameWithoutExtension(this.ViewModel.BinPath);
+        IStorageFile? file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export notes",
+            SuggestedFileName = baseName + "_notes.txt",
+            DefaultExtension = "txt",
+            FileTypeChoices = new[] { new FilePickerFileType("Text files") { Patterns = new[] { "*.txt" } } },
+        });
+
+        if (file?.TryGetLocalPath() is { } path)
+        {
+            try
+            {
+                await this.ViewModel.ExportNotesAsync(path);
+            }
+            catch (Exception ex)
+            {
+                this.ViewModel.Status = "Could not export the notes: " + ex.Message;
+            }
+        }
+    }
 
     private async void OnCheckChecksums(object? sender, RoutedEventArgs e)
     {
@@ -1050,10 +1172,15 @@ public partial class TuneView : UserControl
         }
 
         string baseName = Path.GetFileNameWithoutExtension(this.ViewModel.BinPath ?? "tune");
+        string? saveFolder = this.ViewModel.SaveFolder;
+        IStorageFolder? start = saveFolder != null && Directory.Exists(saveFolder)
+            ? await top.StorageProvider.TryGetFolderFromPathAsync(saveFolder)
+            : null;
         IStorageFile? file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save BIN as",
-            SuggestedFileName = baseName + "_edit.bin",
+            SuggestedStartLocation = start,
+            SuggestedFileName = this.ViewModel.SuggestedSaveName(),
             DefaultExtension = "bin",
             FileTypeChoices = new[] { new FilePickerFileType("BIN files") { Patterns = new[] { "*.bin" } } },
         });

@@ -24,8 +24,18 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         // Starts at 1920 x 1080; on a smaller screen, shrink to fit instead of opening off the edge.
-        this.Opened += (_, _) =>
+        this.Opened += async (_, _) =>
         {
+            // Reopen the project that was open last time, with its BIN.
+            try
+            {
+                await this.tune.RestoreLastProjectAsync();
+            }
+            catch (Exception ex)
+            {
+                this.ShellStatus.Text = "Could not reopen the last project: " + ex.Message;
+            }
+
             if (this.Screens.ScreenFromWindow(this) is { } screen)
             {
                 double maxWidth = screen.WorkingArea.Width / screen.Scaling;
@@ -51,6 +61,11 @@ public partial class MainWindow : Window
         // One profile folder for the Logger and the Tune tab: put the tuning profiles that ship with PcmSuite into
         // it (never overwriting a file the user has edited).
         Tune.LogProfileCatalog.Seed(Path.Combine(AppContext.BaseDirectory, "Profiles"), Tune.LogProfileCatalog.SharedFolder);
+        // A project's recordings go in its own logs folder; closing the project puts the Logger back where it was.
+        string defaultLogFolder = this.logger.LogFolder;
+        this.tune.ProjectChanged += project =>
+            this.logger.LogFolder = project != null ? project.LogsFolder : defaultLogFolder;
+
         this.tuneView = new Tune.TuneView { DataContext = this.tune };
         this.TuneHost.Content = this.tuneView;
         this.CreditsHost.Content = new CreditsView();
@@ -71,6 +86,18 @@ public partial class MainWindow : Window
             if (this.Clipboard != null)
             {
                 await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(this.Clipboard, path);
+            }
+
+            this.Tabs.SelectedIndex = FlashTab;
+        };
+
+        // A new project that starts with a read from the PCM: take the user to the Flash tab with the project's reads
+        // folder on the clipboard (the Flash screen's file picker cannot be preset).
+        this.tune.FlashReadRequested += async project =>
+        {
+            if (this.Clipboard != null)
+            {
+                await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(this.Clipboard, project.ReadsFolder);
             }
 
             this.Tabs.SelectedIndex = FlashTab;
@@ -251,10 +278,14 @@ public partial class MainWindow : Window
             return hint;
         }
 
+        string project = this.tune.CurrentProject is { } open
+            ? $" Project '{open.DisplayName}': save reads in {open.ReadsFolder}."
+            : string.Empty;
         return tab switch
         {
-            LoggerTab => "Press Connect to use the adapter here.",
-            FlashTab => "Use Select Device to connect here.",
+            LoggerTab => "Press Connect to use the adapter here." +
+                         (this.tune.CurrentProject is { } p ? $" Recordings go to {p.LogsFolder}." : string.Empty),
+            FlashTab => "Use Select Device to connect here." + project,
             _ => string.Empty,
         };
     }

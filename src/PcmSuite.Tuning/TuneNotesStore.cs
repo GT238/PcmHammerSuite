@@ -13,10 +13,14 @@ public sealed class TuneNotesStore
     private readonly string path;
     private Data data = new();
 
-    public TuneNotesStore(string? path = null)
+    private readonly bool keyByFileName;
+
+    /// <param name="path">The JSON file (default: the app-data file).</param>
+    /// <param name="keyByFileName">Key notes by the BIN's file name, so a project folder can be moved or copied with its notes.</param>
+    public TuneNotesStore(string? path = null, bool keyByFileName = false)
     {
-        this.path = path ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PcmSuite", "tuning-meta.json");
+        this.keyByFileName = keyByFileName;
+        this.path = path ?? Path.Combine(PcmSuite.Tuning.Core.Models.AppPaths.DataFolder, "tuning-meta.json");
         this.Load();
     }
 
@@ -54,15 +58,17 @@ public sealed class TuneNotesStore
         this.Save();
     }
 
+    private string? Key(string? bin) => bin != null && this.keyByFileName ? Path.GetFileName(bin) : bin;
+
     public string GetNote(string? bin, string table) =>
-        bin != null && this.data.Notes.TryGetValue(bin, out Dictionary<string, string>? notes)
+        Key(bin) is { } key && this.data.Notes.TryGetValue(key, out Dictionary<string, string>? notes)
         && notes.TryGetValue(table, out string? text)
             ? text
             : string.Empty;
 
-    public void SetNote(string? bin, string table, string text)
+    public void SetNote(string? binPath, string table, string text)
     {
-        if (bin == null)
+        if (Key(binPath) is not { } bin)
         {
             return;
         }
@@ -90,9 +96,17 @@ public sealed class TuneNotesStore
         this.Save();
     }
 
+    /// <summary>Every note written for one BIN, by table name, in name order.</summary>
+    public IReadOnlyList<KeyValuePair<string, string>> NotesFor(string? bin) =>
+        Key(bin) is { } key && this.data.Notes.TryGetValue(key, out Dictionary<string, string>? notes)
+            ? notes.OrderBy(n => n.Key, StringComparer.OrdinalIgnoreCase).ToList()
+            : new List<KeyValuePair<string, string>>();
+
     /// <summary>Notes follow a BIN that is saved under a new name.</summary>
-    public void CopyNotes(string fromBin, string toBin)
+    public void CopyNotes(string fromPath, string toPath)
     {
+        string fromBin = Key(fromPath)!;
+        string toBin = Key(toPath)!;
         if (string.Equals(fromBin, toBin, StringComparison.OrdinalIgnoreCase)
             || !this.data.Notes.TryGetValue(fromBin, out Dictionary<string, string>? notes))
         {

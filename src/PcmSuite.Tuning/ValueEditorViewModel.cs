@@ -4,6 +4,12 @@ using PcmSuite.Tuning.Core.Models;
 
 namespace PcmSuite.Tune;
 
+/// <summary>One cell's value before and after an edit, in the table's units.</summary>
+public sealed record CellChange(int Row, int Column, double Old, double New);
+
+/// <summary>What one edit, undo or redo did: its name and every cell it changed.</summary>
+public sealed record EditRecord(string Kind, string Label, IReadOnlyList<CellChange> Cells);
+
 /// <summary>
 /// Reads and edits the values of one table (or single value / flag) in the loaded BIN.
 /// Edits change the BIN's bytes in memory; nothing reaches disk until the BIN is saved.
@@ -17,7 +23,10 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     private readonly List<EditStep> redoStack = new();
 
     /// <summary>One undoable change: what it was called, how to take it back and how to do it again.</summary>
-    private sealed record EditStep(string Label, Action Undo, Action Redo);
+    private sealed record EditStep(string Label, Action Undo, Action Redo, IReadOnlyList<CellChange> Cells);
+
+    /// <summary>Raised after every edit, undo and redo, so the Tuner can keep a change log.</summary>
+    public event Action<EditRecord>? Edited;
 
     public ValueEditorViewModel(TableDefinition table, byte[] bin, Func<string, double>? crossRef)
     {
@@ -104,7 +113,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             return false;
         }
 
-        bool changed = this.ApplyRaw(new[] { (row, column, this.table.InverseScale(scaled, this.crossRef)) }, $"Edit {this.ColumnLabel(column)} x {this.RowLabel(row)}") > 0;
+        bool changed = this.ApplyRaw(new[] { (row, column, this.table.InverseScale(scaled, this.crossRef)) }, "Typed value") > 0;
         shown = this.CellText(row, column);
         return changed;
     }
@@ -182,6 +191,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     private int ApplyRaw(IEnumerable<(int Row, int Column, double Raw)> edits, string label)
     {
         List<(int Row, int Column, double Old, double New)> done = new();
+        List<CellChange> changes = new();
         foreach ((int row, int column, double wanted) in edits)
         {
             double raw = Math.Round(Math.Clamp(wanted, this.RawMin, this.RawMax));
@@ -191,6 +201,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
                 continue;
             }
 
+            double oldScaled = this.Scaled(row, column);
             this.table.SetRawValue(this.bin, row, column, raw);
 
             // A cell whose address lies outside this BIN cannot be written (the XDF may not match the file).
@@ -200,6 +211,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             }
 
             done.Add((row, column, old, raw));
+            changes.Add(new CellChange(row, column, oldScaled, this.Scaled(row, column)));
         }
 
         if (done.Count == 0)
@@ -222,8 +234,10 @@ public sealed partial class ValueEditorViewModel : ObservableObject
                 {
                     this.table.SetRawValue(this.bin, row, column, next);
                 }
-            }));
+            },
+            changes));
         this.Changed();
+        this.Edited?.Invoke(new EditRecord("Edit", label, changes));
         return done.Count;
     }
 
@@ -255,8 +269,9 @@ public sealed partial class ValueEditorViewModel : ObservableObject
         }
 
         this.bin[offset] = after;
-        this.Push(new EditStep("Flag " + this.Name, () => this.bin[offset] = before, () => this.bin[offset] = after));
+        this.Push(new EditStep("Flag " + this.Name, () => this.bin[offset] = before, () => this.bin[offset] = after, Array.Empty<CellChange>()));
         this.Changed();
+        this.Edited?.Invoke(new EditRecord("Edit", (on ? "Set flag " : "Clear flag ") + this.Name, Array.Empty<CellChange>()));
     }
 
     public bool Undo()
@@ -271,6 +286,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
         step.Undo();
         this.redoStack.Add(step);
         this.Changed();
+        this.Edited?.Invoke(new EditRecord("Undo", step.Label, step.Cells.Select(c => new CellChange(c.Row, c.Column, c.New, c.Old)).ToList()));
         return true;
     }
 
@@ -286,6 +302,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
         step.Redo();
         this.undoStack.Add(step);
         this.Changed();
+        this.Edited?.Invoke(new EditRecord("Redo", step.Label, step.Cells));
         return true;
     }
 

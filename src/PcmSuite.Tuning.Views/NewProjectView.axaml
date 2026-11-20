@@ -1,0 +1,66 @@
+<local:OverlayPage xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PcmSuite.Tune"
+        x:Class="PcmSuite.Tune.NewProjectView">
+
+    <ScrollViewer>
+        <StackPanel Spacing="10">
+            <TextBlock Text="New vehicle project" FontSize="16" FontWeight="SemiBold"/>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Project name" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="NameBox" PlaceholderText="e.g. Bradley's Tahoe"/>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="10">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Year" FontSize="12" Opacity="0.7"/>
+                    <TextBox x:Name="YearBox" PlaceholderText="2002"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="Make" FontSize="12" Opacity="0.7"/>
+                    <TextBox x:Name="MakeBox" PlaceholderText="Chevrolet"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Spacing="4">
+                    <TextBlock Text="Model" FontSize="12" Opacity="0.7"/>
+                    <TextBox x:Name="ModelBox" PlaceholderText="Tahoe"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                    <TextBlock Text="Engine" FontSize="12" Opacity="0.7"/>
+                    <TextBox x:Name="EngineBox" PlaceholderText="5.3L LM7"/>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="VIN (optional)" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="VinBox" MaxLength="17" PlaceholderText="17 characters"/>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Notes (optional)" FontSize="12" Opacity="0.7"/>
+                <TextBox x:Name="NotesBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64"
+                         PlaceholderText="Headers, cam, injectors, target power..."/>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Where does the tune start?" FontWeight="SemiBold"/>
+                <RadioButton x:Name="StartRead" GroupName="Start" IsChecked="True"
+                             Content="Read it from the PCM (I will do that on the Flash tab next)"/>
+                <RadioButton x:Name="StartFile" GroupName="Start" Content="Start from a BIN file I already have"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding #StartFile.IsChecked}">
+                    <TextBox x:Name="StartPath" PlaceholderText="Choose a BIN (it is copied into the project, never changed)" IsReadOnly="True"/>
+                    <Button Grid.Column="1" Content="Browse..." Click="OnBrowseStart"/>
+                </Grid>
+                <RadioButton x:Name="StartLater" GroupName="Start" Content="Decide later (an empty project)"/>
+            </StackPanel>
+
+            <TextBlock x:Name="WhereText" FontSize="12" Opacity="0.6" TextWrapping="Wrap"/>
+            <TextBlock x:Name="Problem" Foreground="#E8A838" TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Cancel" Click="OnCancel"/>
+                <Button Content="Create project" Click="OnCreate" Classes="accent"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</local:OverlayPage>

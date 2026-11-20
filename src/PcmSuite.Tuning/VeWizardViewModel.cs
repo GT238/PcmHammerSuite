@@ -227,7 +227,7 @@ public sealed partial class VeWizardViewModel : ObservableObject
 
     /// <summary>Put the proposed values into the open table as one undoable edit.</summary>
     public int Apply() =>
-        this.editor.ApplyBatch(this.Results.Select(r => (r.Row, r.Column, r.NewScaled)));
+        this.editor.ApplyBatch(this.Results.Select(r => (r.Row, r.Column, r.NewScaled)), "VE wizard corrections");
 
     private static int Find(LoggedData data, params string[] keywords)
     {

@@ -12,10 +12,11 @@ namespace PcmSuite.Tuning.Core.Models
         /// <summary>The BIN files opened most recently, newest first.</summary>
         public System.Collections.Generic.List<string> RecentBins { get; set; } = new();
 
+        /// <summary>The project folder that was open when the app last closed (opened again at the next start).</summary>
+        public string LastProject { get; set; } = "";
+
         private static string FilePath =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PcmSuite", "settings.json");
+            Path.Combine(AppPaths.DataFolder, "settings.json");
 
         public static AppSettings Load()
         {
