@@ -1,7 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PcmSuite.MainWindow"
-        Title="PCM Suite (prototype)" Width="1100" Height="700">
+        Icon="avares://PcmSuite/Assets/PcmSuite.ico"
+        Title="PCM Suite (prototype)" Width="1920" Height="1080" WindowStartupLocation="CenterScreen">
     <DockPanel>
         <!-- Shell status: says what the hand-off between tabs did. -->
         <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
@@ -11,9 +12,33 @@
         </Border>
 
         <TabControl x:Name="Tabs" SelectionChanged="OnTabChanged">
-            <TabItem Header="Flash"><ContentControl x:Name="FlashHost"/></TabItem>
-            <TabItem Header="Logger"><ContentControl x:Name="LoggerHost"/></TabItem>
-            <TabItem Header="Tune"><ContentControl x:Name="TuneHost"/></TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Image Source="avares://PcmSuite/Assets/Tabs/Flash.png" Width="28" Height="28"/>
+                        <TextBlock Text="Flash" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="FlashHost"/>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Image Source="avares://PcmSuite/Assets/Tabs/Logger.png" Width="28" Height="28"/>
+                        <TextBlock Text="Logger" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="LoggerHost"/>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Image Source="avares://PcmSuite/Assets/Tabs/Tune.png" Width="28" Height="28"/>
+                        <TextBlock Text="Tuner" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="TuneHost"/>
+            </TabItem>
             <TabItem Header="Credits"><ContentControl x:Name="CreditsHost"/></TabItem>
         </TabControl>
     </DockPanel>

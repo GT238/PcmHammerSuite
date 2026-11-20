@@ -7,7 +7,7 @@
         <StackPanel Spacing="4">
             <TextBlock Text="Logging profiles" FontSize="16" FontWeight="SemiBold"/>
             <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                       Text="One shared folder for the Logger and the Tune tab. The tuning profiles below come with PcmSuite; any profile you save into this folder from the Logger (Params → Save Profile) appears here too. To use one, pick it here, then in the Logger press Connect and Params → Open Profile."/>
+                       Text="One shared folder for the Logger and the Tuner. The tuning profiles below come with PcmSuite; any profile you save into this folder from the Logger (Params → Save Profile) appears here too. To use one, pick it here, then in the Logger press Connect and Params → Open Profile."/>
             <TextBlock x:Name="FolderText" Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
         </StackPanel>
 

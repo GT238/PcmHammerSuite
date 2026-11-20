@@ -8,7 +8,20 @@
     <AssemblyName>PcmSuite</AssemblyName>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\PcmSuite.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- Window and taskbar icon (the same artwork as the exe icon). -->
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\assets\PcmSuite.ico" Link="Assets\PcmSuite.ico" />
+  </ItemGroup>
+
+  <!-- Tab icons: the Flasher and Logger pictures come straight from the PCM Hammer submodule; the Tuner's is ours. -->
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\extern\PcmHammer\Apps\UI\Avalonia\PCMHammerAvalonia\Assets\Icon.png" Link="Assets\Tabs\Flash.png" />
+    <AvaloniaResource Include="..\..\extern\PcmHammer\Apps\UI\Avalonia\PCMLoggerAvalonia.Android\Icon.png" Link="Assets\Tabs\Logger.png" />
+    <AvaloniaResource Include="..\..\assets\PcmTuner.png" Link="Assets\Tabs\Tune.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
