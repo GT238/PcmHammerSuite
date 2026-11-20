@@ -1101,11 +1101,47 @@ public partial class TuneViewModel : ObservableObject
         project.EnsureFolders();   // projects made by LS-Studio have no logs folder yet
         this.CurrentProject = project;
         this.projectNotes = new TuneNotesStore(project.NotesFile, keyByFileName: true);
+        int moved = this.ImportOldNotes(project);
         this.settings.LastProject = project.ProjectFolder;
         this.settings.Save();
         this.RefreshNotesAfterProjectChange();
         this.ProjectChanged?.Invoke(project);
-        this.Status = $"Project '{project.DisplayName}' is open. Its reads, saved tunes, logs, change log and notes are in {project.ProjectFolder}.";
+        this.Status = $"Project '{project.DisplayName}' is open. Its reads, saved tunes, logs, change log and notes are in {project.ProjectFolder}." +
+                      (moved > 0 ? $" Moved {moved} older note(s) into it." : string.Empty);
+    }
+
+    /// <summary>
+    /// Once per project: copy notes written earlier (in LS-Studio, or in the app-wide store) for BINs that sit inside
+    /// this project's folder into the project's own notes. Nothing is removed from the old places.
+    /// </summary>
+    private int ImportOldNotes(ProjectInfo project)
+    {
+        if (project.NotesImported || this.projectNotes == null)
+        {
+            return 0;
+        }
+
+        // LS-Studio's projects now live under the PcmSuite Projects folder, so its old paths are translated.
+        string Map(string path) =>
+            path.StartsWith(ProjectInfo.LegacyProjectsRoot, StringComparison.OrdinalIgnoreCase)
+                ? ProjectInfo.DefaultProjectsRoot + path.Substring(ProjectInfo.LegacyProjectsRoot.Length)
+                : path;
+
+        int moved = this.projectNotes.AddNotesIfMissing(
+            this.store.AllNotes().Concat(TuneNotesStore.ReadLsStudioNotes())
+                .Select(n => (Bin: Map(n.Bin), n.Table, n.Text))
+                .Where(n => n.Bin.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase)));
+        try
+        {
+            project.NotesImported = true;
+            project.Save();
+        }
+        catch
+        {
+            // It will simply try again next time (and add nothing, since the notes are there).
+        }
+
+        return moved;
     }
 
     /// <summary>Open a project and, if it has a BIN, open that too (the last one used, else the newest tune or read).</summary>

@@ -102,6 +102,49 @@ public sealed class TuneNotesStore
             ? notes.OrderBy(n => n.Key, StringComparer.OrdinalIgnoreCase).ToList()
             : new List<KeyValuePair<string, string>>();
 
+    /// <summary>Every note in this store: the BIN it is keyed by, the table and the text.</summary>
+    public IReadOnlyList<(string Bin, string Table, string Text)> AllNotes() =>
+        this.data.Notes.SelectMany(b => b.Value.Select(n => (b.Key, n.Key, n.Value))).ToList();
+
+    /// <summary>Add notes that this store does not have yet (never overwrites one). Returns how many were added.</summary>
+    public int AddNotesIfMissing(IEnumerable<(string Bin, string Table, string Text)> notes)
+    {
+        int added = 0;
+        foreach ((string bin, string table, string text) in notes)
+        {
+            if (!string.IsNullOrWhiteSpace(text) && this.GetNote(bin, table).Length == 0)
+            {
+                this.SetNote(bin, table, text);
+                added++;
+            }
+        }
+
+        return added;
+    }
+
+    /// <summary>The notes LS-Studio saved (BIN path -> table name -> text), or none if it never ran here.</summary>
+    public static IReadOnlyList<(string Bin, string Table, string Text)> ReadLsStudioNotes()
+    {
+        try
+        {
+            string file = Path.Combine(PcmSuite.Tuning.Core.Models.AppPaths.LsStudioDataFolder, "notes.json");
+            if (!File.Exists(file))
+            {
+                return Array.Empty<(string, string, string)>();
+            }
+
+            Dictionary<string, Dictionary<string, string>>? all =
+                JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(File.ReadAllText(file));
+            return all == null
+                ? Array.Empty<(string, string, string)>()
+                : all.SelectMany(b => b.Value.Select(n => (b.Key, n.Key, n.Value))).ToList();
+        }
+        catch
+        {
+            return Array.Empty<(string, string, string)>();
+        }
+    }
+
     /// <summary>Notes follow a BIN that is saved under a new name.</summary>
     public void CopyNotes(string fromPath, string toPath)
     {

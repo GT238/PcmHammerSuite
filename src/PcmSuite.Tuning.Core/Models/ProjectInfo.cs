@@ -32,6 +32,9 @@ namespace PcmSuite.Tuning.Core.Models
         /// </summary>
         public string? BaseBinName { get; set; }
 
+        /// <summary>True once notes from the old LS-Studio / app-wide stores were moved into this project (done once).</summary>
+        public bool NotesImported { get; set; }
+
         public DateTime Created  { get; set; } = DateTime.Now;
         public DateTime Modified { get; set; } = DateTime.Now;
 
