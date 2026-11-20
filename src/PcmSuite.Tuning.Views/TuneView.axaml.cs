@@ -31,6 +31,11 @@ public partial class TuneView : UserControl
             button.Click += (_, _) => this.MenuToggle.IsChecked = false;
         }
 
+        // Drop a .bin or .xdf file anywhere on the Tuner to open it.
+        DragDrop.SetAllowDrop(this, true);
+        this.AddHandler(DragDrop.DragOverEvent, this.OnDragOver);
+        this.AddHandler(DragDrop.DropEvent, this.OnDrop);
+
         this.SizeChanged += (_, e) => this.ApplyLayout(e.NewSize.Width);
         this.AttachedToVisualTree += (_, _) => this.WatchForReads();
         this.EditorScroll.ScrollChanged += (_, _) => this.UpdateFrozenHeaders();
@@ -835,7 +840,7 @@ public partial class TuneView : UserControl
         string? path = await this.PickFileAsync("Open BIN file", "BIN files", "*.bin", "*.BIN");
         if (path != null && this.ViewModel != null)
         {
-            await this.ViewModel.ImportBinAsync(path);
+            await this.OpenBinAskingAsync(path);
         }
     }
 
@@ -929,6 +934,148 @@ public partial class TuneView : UserControl
         {
             this.BuildEditor();
             vm.Status = "VE wizard: the corrections are in the table (not saved yet). Undo reverts them in one step.";
+        }
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null)
+        {
+            return;
+        }
+
+        string? path = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).FirstOrDefault(f => f != null);
+        e.Handled = true;
+        if (path == null)
+        {
+            return;
+        }
+
+        // A project folder, or its project.json, opens that project.
+        string? projectFolder = Directory.Exists(path) ? path
+            : Path.GetFileName(path).Equals("project.json", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(path)
+            : null;
+        if (projectFolder != null)
+        {
+            await this.OpenProjectFolderAsync(projectFolder);
+            return;
+        }
+
+        string extension = Path.GetExtension(path).ToLowerInvariant();
+        if (extension is not (".bin" or ".xdf"))
+        {
+            vm.Status = "Drop a .bin or .xdf file, or a project folder, to open it. (" + Path.GetFileName(path) + " is none of those.)";
+            return;
+        }
+
+        if (!await this.ConfirmDiscardAsync())
+        {
+            return;
+        }
+
+        if (extension == ".bin")
+        {
+            await this.OpenBinAskingAsync(path);
+        }
+        else
+        {
+            await vm.OpenXdfAsync(path);
+        }
+    }
+
+    /// <summary>
+    /// Open a BIN, asking first whenever that would switch project or add the file to one:
+    /// inside this project, or no project open, it just opens.
+    /// </summary>
+    private async Task OpenBinAskingAsync(string path)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null)
+        {
+            return;
+        }
+
+        PcmSuite.Tuning.Core.Models.ProjectInfo? current = vm.CurrentProject;
+        PcmSuite.Tuning.Core.Models.ProjectInfo? owner = PcmSuite.Tuning.Core.Models.ProjectInfo.FindContaining(path);
+        bool inCurrent = current != null && path.StartsWith(current.ProjectFolder, StringComparison.OrdinalIgnoreCase);
+        string name = Path.GetFileName(path);
+
+        if (owner != null && !inCurrent)
+        {
+            string stay = current != null ? $" (it stays in '{current.DisplayName}')" : string.Empty;
+            ChoicePage ask = new(
+                "Switch project?",
+                $"{name} belongs to project '{owner.DisplayName}'. Switch to that project, or just open the file{stay}?",
+                $"Switch to '{owner.DisplayName}'",
+                "Just open it",
+                "Cancel");
+            await this.ShowOverlayAsync(ask);
+            if (ask.Choice == 0)
+            {
+                await vm.ImportBinAsync(path);
+            }
+            else if (ask.Choice == 1)
+            {
+                await vm.OpenBinAsync(path);
+            }
+
+            return;
+        }
+
+        if (current != null && !inCurrent)
+        {
+            ChoicePage ask = new(
+                "Add to the project?",
+                $"{name} is not in project '{current.DisplayName}'. Copy it into the project's reads folder, or just open it?",
+                "Add to project",
+                "Just open it",
+                "Cancel");
+            await this.ShowOverlayAsync(ask);
+            if (ask.Choice == 0)
+            {
+                await vm.ImportBinAsync(path, true);
+            }
+            else if (ask.Choice == 1)
+            {
+                await vm.OpenBinAsync(path);
+            }
+
+            return;
+        }
+
+        await vm.OpenBinAsync(path);
+    }
+
+    /// <summary>Open a project from its folder; a folder without project.json can be made into one.</summary>
+    private async Task OpenProjectFolderAsync(string folder)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null)
+        {
+            return;
+        }
+
+        PcmSuite.Tuning.Core.Models.ProjectInfo? project = PcmSuite.Tuning.Core.Models.ProjectInfo.Load(folder);
+        if (project == null)
+        {
+            if (!await this.ConfirmAsync("Make this a project?", $"{folder} is not a project yet (it has no project.json). Make it one? Its files stay where they are.", "Make it a project"))
+            {
+                return;
+            }
+
+            project = vm.AdoptFolder(folder);
+        }
+
+        if (await this.ConfirmDiscardAsync())
+        {
+            await vm.OpenProjectAsync(project);
         }
     }
 

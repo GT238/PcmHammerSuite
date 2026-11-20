@@ -973,9 +973,20 @@ public partial class TuneViewModel : ObservableObject
     /// Add a BIN to the open project: a file from elsewhere is copied into reads (the original is left alone) and the
     /// copy is opened. Without a project it simply opens the file.
     /// </summary>
-    public async Task ImportBinAsync(string path)
+    public async Task ImportBinAsync(string path, bool copyIntoProject = true)
     {
+        // A file that lives inside another project belongs to that project: switch to it instead of copying the file.
+        if (ProjectInfo.FindContaining(path) is { } owner
+            && !string.Equals(owner.ProjectFolder, this.CurrentProject?.ProjectFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            this.OpenProject(owner);
+            await this.OpenBinAsync(path);
+            this.Status = $"Switched to project '{owner.DisplayName}'. " + this.Status;
+            return;
+        }
+
         if (this.CurrentProject is not { } project
+            || !copyIntoProject
             || path.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase))
         {
             await this.OpenBinAsync(path);
@@ -1125,11 +1136,18 @@ public partial class TuneViewModel : ObservableObject
     }
 
     /// <summary>Open the project that was open when the app last closed (does not open its BIN).</summary>
-    public async Task RestoreLastProjectAsync()
+    public async Task RestoreLastProjectAsync(bool openBin = true)
     {
         if (this.settings.LastProject.Length > 0 && ProjectInfo.Load(this.settings.LastProject) is { } project)
         {
-            await this.OpenProjectAsync(project);
+            if (openBin)
+            {
+                await this.OpenProjectAsync(project);
+            }
+            else
+            {
+                this.OpenProject(project);
+            }
         }
     }
 
@@ -1206,8 +1224,8 @@ public partial class TuneViewModel : ObservableObject
         this.XdfName = "Searching...";
         this.Status = "BIN loaded: " + this.BinName + " - searching for a matching XDF...";
 
-        string? xdf = await DetectXdfAsync(path, this.CurrentProject?.ProjectFolder);
-        if (xdf == null)
+        IReadOnlyList<string> candidates = await DetectXdfsAsync(path, this.CurrentProject?.ProjectFolder);
+        if (candidates.Count == 0)
         {
             this.XdfName = "None found";
             string ids = string.Empty;
@@ -1226,17 +1244,31 @@ public partial class TuneViewModel : ObservableObject
             return;
         }
 
-        this.XdfPath = xdf;
-        this.NoteProjectFiles(null, xdf);
-        this.XdfName = Path.GetFileName(xdf) + " (auto-detected)";
-        await this.LoadAsync();
-        await this.CompareToProjectBaseAsync();
+        // Some XDFs are protected and cannot be read: take the best one that can.
+        foreach (string xdf in candidates)
+        {
+            this.XdfPath = xdf;
+            this.XdfName = Path.GetFileName(xdf) + " (auto-detected)";
+            if (await this.LoadAsync())
+            {
+                this.NoteProjectFiles(null, xdf);
+                await this.CompareToProjectBaseAsync();
+                return;
+            }
+        }
+
+        this.XdfPath = null;
+        this.XdfName = "None readable";
+        this.Status = $"Found {candidates.Count} XDF(s) for this BIN ({string.Join(", ", candidates.Select(Path.GetFileName).Take(3))}) " +
+                      "but none could be read; protected XDFs only open in TunerPro. Use Open XDF with an unprotected one.";
     }
 
     /// <summary>In a project, mark every difference from its untouched base BIN as soon as another BIN is open.</summary>
     private async Task CompareToProjectBaseAsync()
     {
+        // Only BINs that belong to the project are compared with its base (a file opened "just to look" is not).
         if (this.CurrentProject?.BaseBinPath is not { } baseBin || this.BinPath == null || this.BinData == null
+            || !this.BinPath.StartsWith(this.CurrentProject.ProjectFolder, StringComparison.OrdinalIgnoreCase)
             || string.Equals(Path.GetFullPath(baseBin), Path.GetFullPath(this.BinPath), StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -1264,25 +1296,53 @@ public partial class TuneViewModel : ObservableObject
 
     public async Task OpenXdfAsync(string path)
     {
-        // Same as LS-Studio: keep one copy of each XDF in the shared library.
-        Directory.CreateDirectory(ProjectInfo.XdfLibraryFolder);
-        string library = Path.Combine(ProjectInfo.XdfLibraryFolder, Path.GetFileName(path));
-        if (!string.Equals(path, library, StringComparison.OrdinalIgnoreCase))
+        string? previousPath = this.XdfPath;
+        string previousName = this.XdfName;
+        this.XdfPath = path;
+        this.XdfName = Path.GetFileName(path) + " (manually selected)";
+        if (!await this.LoadAsync())
         {
-            await Task.Run(() => File.Copy(path, library, overwrite: true));
+            // Not readable (a protected TunerPro file, or not an XDF): keep what was open and say so.
+            this.XdfPath = previousPath;
+            this.XdfName = previousName;
+            this.Status = $"{Path.GetFileName(path)} cannot be read. It is probably a protected XDF that only TunerPro can open, " +
+                          "or it is not an XDF. " + (previousPath != null ? "Still using " + previousName + "." : "Use an unprotected XDF.");
+            return;
         }
 
-        this.XdfPath = library;
-        this.XdfName = Path.GetFileName(library) + " (manually selected)";
-        await this.LoadAsync();
+        // Same as LS-Studio: keep one copy of each (readable) XDF in the shared library.
+        try
+        {
+            Directory.CreateDirectory(ProjectInfo.XdfLibraryFolder);
+            string library = Path.Combine(ProjectInfo.XdfLibraryFolder, Path.GetFileName(path));
+            if (!string.Equals(path, library, StringComparison.OrdinalIgnoreCase))
+            {
+                await Task.Run(() => File.Copy(path, library, overwrite: true));
+            }
+
+            bool added = !string.Equals(path, library, StringComparison.OrdinalIgnoreCase);
+            this.XdfPath = library;
+            this.XdfName = Path.GetFileName(library) + " (manually selected)";
+            this.NoteProjectFiles(null, library);
+            if (added)
+            {
+                this.Status = $"{Path.GetFileName(path)} was added to the XDF library. " + this.Status;
+            }
+        }
+        catch
+        {
+            // The XDF is loaded; failing to copy it into the library is not worth a message.
+        }
+
+        await this.CompareToProjectBaseAsync();
     }
 
-    private async Task LoadAsync()
+    private async Task<bool> LoadAsync()
     {
         if (this.BinPath == null || this.XdfPath == null)
         {
             this.Status = "Open a BIN and an XDF to load parameters.";
-            return;
+            return false;
         }
 
         try
@@ -1309,7 +1369,7 @@ public partial class TuneViewModel : ObservableObject
                 if (error != null)
                 {
                     this.Status = "This XDF could not be read or converted: " + error;
-                    return;
+                    return false;
                 }
 
                 try
@@ -1322,7 +1382,7 @@ public partial class TuneViewModel : ObservableObject
                     try { File.Delete(clean); } catch { }
                     this.XdfName = Path.GetFileName(xdf) + " (unreadable)";
                     this.Status = "This XDF cannot be read, even after conversion. Try another XDF with Open XDF.";
-                    return;
+                    return false;
                 }
 
                 xdf = clean;
@@ -1357,22 +1417,25 @@ public partial class TuneViewModel : ObservableObject
                 this.Categories.Clear();
                 this.allCategories = new List<ParameterNode>();
                 this.Status = "XDF parsed but no tables found. Check that the XDF matches this BIN.";
-                return;
+                return false;
             }
 
             this.allCategories = BuildTree(tables, patches);
             this.ApplyMeta();
             this.ApplyFilter(this.SearchText);
             this.Status = $"Loaded {tables.Count} tables and {patches.Count} patches - {this.BinName}";
+            return true;
         }
         catch (Exception ex)
         {
             this.Status = "Error: " + ex.Message;
+            return false;
         }
     }
 
-    private static Task<string?> DetectXdfAsync(string binPath, string? projectFolder) => Task.Run(() =>
+    private static Task<IReadOnlyList<string>> DetectXdfsAsync(string binPath, string? projectFolder) => Task.Run<IReadOnlyList<string>>(() =>
     {
+        List<string> found = new();
         try
         {
             byte[] bin = File.ReadAllBytes(binPath);
@@ -1384,19 +1447,22 @@ public partial class TuneViewModel : ObservableObject
                     continue;
                 }
 
-                string? match = OsIdDetector.FindMatchingXdf(bin, folder);
-                if (match != null)
+                foreach (string match in OsIdDetector.FindMatchingXdfs(bin, folder))
                 {
-                    return Path.Combine(folder, match);
+                    // The same file name in a later folder is the same XDF.
+                    if (!found.Any(f => string.Equals(Path.GetFileName(f), match, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        found.Add(Path.Combine(folder, match));
+                    }
                 }
             }
         }
         catch
         {
-            // Treated as "no match".
+            // Treated as "none found".
         }
 
-        return (string?)null;
+        return found;
     });
 
     private static List<ParameterNode> BuildTree(List<TableDefinition> tables, List<PatchDefinition> patches)

@@ -58,3 +58,38 @@ public sealed class ConfirmPage : OverlayPage
 
     public override bool StretchHeight => false;
 }
+
+/// <summary>A question with several buttons; <see cref="Choice"/> is the index of the one pressed (-1 if closed another way).</summary>
+public sealed class ChoicePage : OverlayPage
+{
+    public ChoicePage(string title, string text, params string[] labels)
+    {
+        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+        for (int i = 0; i < labels.Length; i++)
+        {
+            int index = i;
+            Button button = new() { Content = labels[i], IsDefault = i == 0 };
+            button.Click += (_, _) =>
+            {
+                this.Choice = index;
+                this.RequestClose();
+            };
+            buttons.Children.Add(button);
+        }
+
+        this.Content = new StackPanel
+        {
+            Spacing = 14,
+            Children =
+            {
+                new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap },
+                new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
+                buttons,
+            },
+        };
+    }
+
+    public int Choice { get; private set; } = -1;
+
+    public override bool StretchHeight => false;
+}

@@ -53,6 +53,35 @@ namespace PcmSuite.Tuning.Core.Parsers
             return bestXdf;
         }
 
+        /// <summary>
+        /// Every XDF in the folder whose file name carries one of the BIN's OS IDs, best match first (ties in name
+        /// order). A caller can try them in turn, because some XDFs in a folder may be protected and unreadable.
+        /// </summary>
+        public static IReadOnlyList<string> FindMatchingXdfs(byte[] bin, string xdfFolder)
+        {
+            if (!Directory.Exists(xdfFolder)) return Array.Empty<string>();
+            var allIds = ScanForOsIds(bin).ToList();
+            if (allIds.Count == 0) return Array.Empty<string>();
+
+            var matches = new List<(string Name, int Score)>();
+            foreach (var xdf in Directory.GetFiles(xdfFolder, "*.xdf"))
+            {
+                string fname = Path.GetFileName(xdf);
+                foreach (string id in allIds)
+                {
+                    if (!fname.Contains(id, StringComparison.OrdinalIgnoreCase)) continue;
+                    matches.Add((fname, CountOccurrences(bin, id)));
+                    break;
+                }
+            }
+
+            return matches
+                .OrderByDescending(m => m.Score)
+                .ThenBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(m => m.Name)
+                .ToList();
+        }
+
         private static int CountOccurrences(byte[] bin, string id)
         {
             byte[] pattern = Encoding.ASCII.GetBytes(id);

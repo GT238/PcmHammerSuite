@@ -181,6 +181,30 @@ namespace PcmSuite.Tuning.Core.Models
             }
         }
 
+        /// <summary>The project whose folder holds this file (looking up a few levels), or null.</summary>
+        public static ProjectInfo? FindContaining(string filePath)
+        {
+            try
+            {
+                string? folder = Path.GetDirectoryName(Path.GetFullPath(filePath));
+                for (int level = 0; level < 5 && !string.IsNullOrEmpty(folder); level++)
+                {
+                    if (File.Exists(Path.Combine(folder, "project.json")))
+                    {
+                        return Load(folder);
+                    }
+
+                    folder = Path.GetDirectoryName(folder);
+                }
+            }
+            catch
+            {
+                // Not inside a project.
+            }
+
+            return null;
+        }
+
         /// <summary>Every project in the projects folder, newest activity first.</summary>
         public static IReadOnlyList<ProjectInfo> ListProjects()
         {

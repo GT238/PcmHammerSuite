@@ -19,23 +19,22 @@ public partial class MainWindow : Window
     private int currentTab = FlashTab;
     private bool switching;
 
-    public MainWindow()
+    // A BIN or XDF given on the command line (for example "Open with" from Explorer), opened in the Tuner at start.
+    private readonly string? startupFile;
+
+    public MainWindow() : this(null)
     {
+    }
+
+    public MainWindow(string? startupFile)
+    {
+        this.startupFile = startupFile is { Length: > 0 } && File.Exists(startupFile) ? Path.GetFullPath(startupFile) : null;
         InitializeComponent();
 
         // Starts at 1920 x 1080; on a smaller screen, shrink to fit instead of opening off the edge.
         this.Opened += async (_, _) =>
         {
-            // Reopen the project that was open last time, with its BIN.
-            try
-            {
-                await this.tune.RestoreLastProjectAsync();
-            }
-            catch (Exception ex)
-            {
-                this.ShellStatus.Text = "Could not reopen the last project: " + ex.Message;
-            }
-
+            // Fit the screen first, before anything slow happens, so the status bar is never under the taskbar.
             if (this.Screens.ScreenFromWindow(this) is { } screen)
             {
                 double maxWidth = screen.WorkingArea.Width / screen.Scaling;
@@ -46,6 +45,28 @@ public partial class MainWindow : Window
                     this.Height = Math.Min(this.Height, maxHeight);
                     this.Position = screen.WorkingArea.Position;
                 }
+            }
+
+            // Reopen the project that was open last time, with its BIN (unless a file was given to open instead).
+            try
+            {
+                await this.tune.RestoreLastProjectAsync(this.startupFile == null);
+                if (this.startupFile != null)
+                {
+                    this.Tabs.SelectedIndex = TuneTab;
+                    if (Path.GetExtension(this.startupFile).Equals(".xdf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await this.tune.OpenXdfAsync(this.startupFile);
+                    }
+                    else
+                    {
+                        await this.tune.ImportBinAsync(this.startupFile, copyIntoProject: false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                this.ShellStatus.Text = "Could not reopen the last project: " + ex.Message;
             }
         };
 
