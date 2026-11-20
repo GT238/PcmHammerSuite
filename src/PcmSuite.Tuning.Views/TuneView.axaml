@@ -114,9 +114,33 @@
 
                 <Border x:Name="EditorPane" Grid.Column="2" BorderThickness="1" Padding="12"
                         BorderBrush="{DynamicResource ControlElevationBorderBrush}">
-                    <Grid>
+                    <Grid RowDefinitions="Auto,*">
+                    <!-- Tables kept open: pick one to switch to it (its undo history stays with it) -->
+                    <ListBox x:Name="TabStrip" ItemsSource="{Binding OpenTabs}" SelectedItem="{Binding ActiveTab, Mode=TwoWay}"
+                             Margin="0,0,0,8" Padding="0" BorderThickness="0" Background="Transparent">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="8,3"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EditorTab">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Title}" MaxWidth="190" TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" ToolTip.Tip="{Binding Title}"/>
+                                    <Button Content="✕" Padding="4,0" FontSize="11" Click="OnCloseTab"
+                                            Background="Transparent" BorderThickness="0" ToolTip.Tip="Close this table (Ctrl+W)"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
                     <!-- A binary patch from the XDF, shown instead of a table -->
-                    <Grid RowDefinitions="Auto,Auto,Auto,*" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <TextBlock Text="{Binding Patch.Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock Grid.Row="1" Text="{Binding Patch.State}" Margin="0,6,0,0" Foreground="#E8A838"/>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,8">
@@ -142,7 +166,7 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <Grid RowDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNull}}">
+                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding Patch, Converter={x:Static ObjectConverters.IsNull}}">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Editor.Name}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>

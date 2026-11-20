@@ -34,6 +34,55 @@ public partial class TuneViewModel : ObservableObject
 
     public ObservableCollection<ParameterNode> Categories { get; } = new();
 
+    // ---- Open tables (tabs): each keeps its own editor, so undo history survives switching tables ----
+
+    public ObservableCollection<EditorTab> OpenTabs { get; } = new();
+
+    [ObservableProperty] private EditorTab? _activeTab;
+
+    partial void OnActiveTabChanged(EditorTab? value)
+    {
+        // Chosen from the tab strip: select the same table in the tree, which shows its editor.
+        if (value != null && !ReferenceEquals(value.Editor, this.Editor))
+        {
+            this.SelectedNode = value.Node;
+        }
+    }
+
+    /// <summary>Close a tab. Edits already made stay in the BIN; only that table's undo history is dropped.</summary>
+    public void CloseTab(EditorTab tab)
+    {
+        int index = this.OpenTabs.IndexOf(tab);
+        if (index < 0)
+        {
+            return;
+        }
+
+        bool wasActive = ReferenceEquals(tab, this.ActiveTab);
+        this.OpenTabs.RemoveAt(index);
+        if (!wasActive)
+        {
+            return;
+        }
+
+        if (this.OpenTabs.Count > 0)
+        {
+            this.SelectedNode = this.OpenTabs[Math.Min(index, this.OpenTabs.Count - 1)].Node;
+        }
+        else
+        {
+            this.ActiveTab = null;
+            this.SelectedNode = null;
+            this.Editor = null;
+        }
+    }
+
+    private void CloseAllTabs()
+    {
+        this.OpenTabs.Clear();
+        this.ActiveTab = null;
+    }
+
     public string? BinPath { get; private set; }
 
     public string? XdfPath { get; private set; }
@@ -70,7 +119,7 @@ public partial class TuneViewModel : ObservableObject
             this.ReferenceName = Path.GetFileName(path);
             this.IsComparing = true;
             await this.RecomputeChangesAsync();
-            this.ShowEditor(this.SelectedNode);
+            this.ShowEditor(this.SelectedNode, true);
         }
         catch (Exception ex)
         {
@@ -89,7 +138,7 @@ public partial class TuneViewModel : ObservableObject
             leaf.HasChanges = false;
         }
 
-        this.ShowEditor(this.SelectedNode);
+        this.ShowEditor(this.SelectedNode, true);
         this.Status = "Comparison cleared.";
     }
 
@@ -223,7 +272,7 @@ public partial class TuneViewModel : ObservableObject
             await this.RecomputeChangesAsync();
         }
 
-        this.ShowEditor(this.SelectedNode);
+        this.ShowEditor(this.SelectedNode, true);
         this.ShowPatch(this.SelectedNode);
     }
 
@@ -489,29 +538,45 @@ public partial class TuneViewModel : ObservableObject
         this.ShowEditor(value);
     }
 
-    private void ShowEditor(ParameterNode? node)
+    /// <summary>
+    /// Show a table's editor, opening a tab for it if it is not open yet. With fresh, the editors are rebuilt (the BIN's
+    /// bytes or the comparison changed under them).
+    /// </summary>
+    private void ShowEditor(ParameterNode? node, bool fresh = false)
     {
         if (node?.Table == null || this.BinData == null)
         {
+            this.ActiveTab = null;
             this.Editor = null;
             return;
         }
 
-        ValueEditorViewModel editor = new(node.Table, this.BinData, this.ResolveTableReference)
+        if (fresh)
         {
-            Reference = this.ReferenceData,
-        };
-        editor.DataChanged += () =>
-        {
-            this.IsDirty = true;
-            this.Status = "Modified: " + editor.Name + " (not saved yet)";
-            if (this.ReferenceData != null)
+            // Every open table reads the BIN or the reference again; the table on show gets a new editor below.
+            foreach (EditorTab other in this.OpenTabs)
             {
-                bool differs = editor.DiffersFromReference();
-                this.ForTable(editor.Name, leaf => leaf.HasChanges = differs);
+                if (!ReferenceEquals(other.Table, node.Table))
+                {
+                    other.Editor = this.CreateEditor(other.Table);
+                }
             }
-        };
-        this.Editor = editor;
+        }
+
+        EditorTab? tab = this.OpenTabs.FirstOrDefault(t => ReferenceEquals(t.Table, node.Table));
+        if (tab == null)
+        {
+            tab = new EditorTab(node, this.CreateEditor(node.Table));
+            this.OpenTabs.Add(tab);
+        }
+        else if (fresh)
+        {
+            tab.Editor = this.CreateEditor(node.Table);
+        }
+
+        // The editor first, so choosing the tab does not ask for the same table to be shown again.
+        this.Editor = tab.Editor;
+        this.ActiveTab = tab;
 
         // A reference to a table this XDF does not contain is evaluated as 1.0, which can be wrong by a large factor.
         // Say so instead of showing plausible-looking numbers.
@@ -526,6 +591,25 @@ public partial class TuneViewModel : ObservableObject
             this.Status = "Warning: this table's equation uses " + string.Join(", ", missing.Select(m => "'" + m + "'")) +
                           ", which is not in this XDF. The values shown may be wrong; do not edit this table.";
         }
+    }
+
+    private ValueEditorViewModel CreateEditor(TableDefinition table)
+    {
+        ValueEditorViewModel editor = new(table, this.BinData!, this.ResolveTableReference)
+        {
+            Reference = this.ReferenceData,
+        };
+        editor.DataChanged += () =>
+        {
+            this.IsDirty = true;
+            this.Status = "Modified: " + editor.Name + " (not saved yet)";
+            if (this.ReferenceData != null)
+            {
+                bool differs = editor.DiffersFromReference();
+                this.ForTable(editor.Name, leaf => leaf.HasChanges = differs);
+            }
+        };
+        return editor;
     }
 
     /// <summary>Equations can refer to another table's value, as ref:'name'.</summary>
@@ -568,7 +652,7 @@ public partial class TuneViewModel : ObservableObject
             this.Status = report.Valid
                 ? $"Saved as {this.BinName}. {report.Summary}"
                 : $"Saved as {this.BinName}, but {report.Summary} Do not flash it until that is fixed.";
-            this.ShowEditor(this.SelectedNode);
+            this.ShowEditor(this.SelectedNode, true);
         }
         catch (Exception ex)
         {
@@ -653,6 +737,7 @@ public partial class TuneViewModel : ObservableObject
     private void ResetLoadedState()
     {
         this.SelectedNode = null;
+        this.CloseAllTabs();
         this.Editor = null;
         this.Patch = null;
         this.patchViewModels = new Dictionary<PatchDefinition, PatchViewModel>();
@@ -684,7 +769,19 @@ public partial class TuneViewModel : ObservableObject
         if (xdf == null)
         {
             this.XdfName = "None found";
-            this.Status = "No matching XDF found. Use Open XDF, or add XDF files to: " + ProjectInfo.XdfLibraryFolder;
+            string ids = string.Empty;
+            try
+            {
+                ids = string.Join(", ", OsIdDetector.ScanForOsIds(File.ReadAllBytes(path)).Take(6));
+            }
+            catch
+            {
+                // The message is still useful without the numbers.
+            }
+
+            this.Status = "No XDF found" + (ids.Length > 0 ? " for the part numbers in this BIN (" + ids + ")" : string.Empty) +
+                          ". Looked for an XDF with one of those numbers in its file name, in the BIN's folder and in " +
+                          ProjectInfo.XdfLibraryFolder + ". Use Open XDF, or put one there.";
             return;
         }
 
@@ -787,6 +884,8 @@ public partial class TuneViewModel : ObservableObject
             this.ChangedOnly = false;
             this.IsDirty = false;
             this.SelectedNode = null;
+            this.CloseAllTabs();
+            this.Editor = null;
             this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
             foreach (TableDefinition table in tables)
             {

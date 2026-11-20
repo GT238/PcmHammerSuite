@@ -479,6 +479,13 @@ public partial class TuneView : UserControl
                 editor.Nudge(shift ? -10 : -1);
                 return;
             case Key.A when ctrl: editor.SelectAll(); return;
+            case Key.W when ctrl:
+                if (this.ViewModel?.ActiveTab is { } active)
+                {
+                    this.ViewModel.CloseTab(active);
+                }
+
+                return;
             case Key.I when ctrl: editor.Interpolate(); return;
             case Key.Z when ctrl: this.ViewModel?.UndoEdit(); return;
             case Key.Y when ctrl: this.ViewModel?.RedoEdit(); return;
@@ -517,6 +524,14 @@ public partial class TuneView : UserControl
         if (this.hooked != null && this.ScaleBox.Value is { } factor)
         {
             this.hooked.Scale((double)factor);
+        }
+    }
+
+    private void OnCloseTab(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: EditorTab tab })
+        {
+            this.ViewModel?.CloseTab(tab);
         }
     }
 
