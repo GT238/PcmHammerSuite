@@ -1,0 +1,239 @@
+<h1 id="tuner">The Tuner</h1>
+
+<p>
+    The Tuner edits the calibration inside a BIN file, using an XDF definition that says where each table is and how to
+    scale it. It never talks to the PCM: it works on files. Reading and writing are done on the Flash tab.
+</p>
+
+<ol>
+    <li><a target="_self" href="#projects">Projects</a></li>
+    <li><a target="_self" href="#opening">Opening a BIN and its XDF</a></li>
+    <li><a target="_self" href="#screen">The screen</a></li>
+    <li><a target="_self" href="#grid">Editing a table</a></li>
+    <li><a target="_self" href="#undo">Undo, redo and history</a></li>
+    <li><a target="_self" href="#tabs">Several tables open</a></li>
+    <li><a target="_self" href="#meta">Pins, tags and notes</a></li>
+    <li><a target="_self" href="#compare">Compare</a></li>
+    <li><a target="_self" href="#saving">Saving, checksums and Send to Flash</a></li>
+    <li><a target="_self" href="#records">Change log and notes export</a></li>
+    <li><a target="_self" href="#ve-wizard">VE wizard</a></li>
+    <li><a target="_self" href="#profiles">Logging profiles</a></li>
+    <li><a target="_self" href="#live">Live trace</a></li>
+    <li><a target="_self" href="#patches">Patches and segment swap</a></li>
+    <li><a target="_self" href="#drop">Drag and drop, command line</a></li>
+    <li><a target="_self" href="#keys">Keyboard shortcuts</a></li>
+    <li><a target="_self" href="#problems">When something goes wrong</a></li>
+</ol>
+
+<h3 id="projects">Projects</h3>
+<p>
+    A project is one folder per vehicle, inside <code>Documents\PcmSuite Projects</code>:
+</p>
+<ul>
+    <li><code>project.json</code> - the name, vehicle details, the XDF and BIN last used, and which BIN is the base.</li>
+    <li><code>reads</code> - BINs read from the PCM. The first one is the untouched base; never edit it.</li>
+    <li><code>edits</code> - the tunes you save from the Tuner (<code>Name_v1.bin</code>, <code>Name_v2.bin</code> ...).</li>
+    <li><code>logs</code> - Logger recordings. While a project is open, the Logger records here.</li>
+    <li><code>changes.log</code> - every edit, with time, BIN, table and old and new values.</li>
+    <li><code>notes.json</code> - your notes, kept by BIN file name so the folder can be copied to another computer.</li>
+</ul>
+<p>
+    Open the menu (the <b>&#9776;</b> button), then <b>Project</b>, then <b>Projects...</b> to see your projects, open one, or
+    make a new one. A new project asks how the tune starts: <b>read it from the PCM</b> (you are taken to the Flash tab),
+    <b>start from a BIN you already have</b> (it is copied into <code>reads</code> as the base), or <b>decide later</b>.
+</p>
+<p>
+    Opening a project opens its BIN: the one used last, otherwise the newest file in <code>edits</code>, otherwise the newest in
+    <code>reads</code>. The next time PcmSuite starts, it reopens the project that was open. <b>Open a project folder...</b> can turn
+    a folder you made yourself into a project (its files stay where they are). The <b>Open BIN</b> button reads
+    <b>Add BIN...</b> inside a project: a file from elsewhere is copied into <code>reads</code>.
+</p>
+<p>
+    A folder is a project when it contains a <code>project.json</code>. The smallest one is
+    <code>{ "Name": "My Impala" }</code>.
+</p>
+
+<h3 id="opening">Opening a BIN and its XDF</h3>
+<p>
+    Open a BIN and the Tuner looks for its XDF by the part numbers (OS IDs) inside the BIN: it wants an XDF with that number in
+    its <b>file name</b>, in the BIN's folder, the project folder or the shared XDF library
+    (<code>Documents\PcmSuite Projects\XDFs</code>). The top bar shows which XDF was found. If none is found, the status bar lists the part
+    numbers and where it looked. <b>Open XDF...</b> (in the menu) picks one yourself, and <b>Auto-detect XDF</b> goes back to the automatic choice.
+    A readable XDF you choose is copied into the library.
+</p>
+<p>
+    <b>Protected XDFs.</b> Some XDFs (often named <code>Operating System ... .xdf</code> or <code>OS... .xdf</code>) are protected by their author and are
+    not XML. Only TunerPro can open them; PcmSuite cannot. The Tuner says so, keeps whatever XDF was open, and when it auto-detects it
+    skips unreadable XDFs and takes the next match. Use an unprotected XDF for the same operating system.
+</p>
+
+<h3 id="screen">The screen</h3>
+<ul>
+    <li><b>Top bar</b> - the menu, <b>Open BIN / Add BIN</b>, <b>Save As</b>, the open BIN and XDF, the project name, and a <b>MODIFIED</b> mark when there are unsaved edits.</li>
+    <li><b>Parameter list</b> (left) - every table and value in the XDF, grouped as the XDF groups them. Type in the search box to filter; the tag
+        drop-down filters by tag. <b>Hide list</b> gives a big table the whole width. Pinned tables appear in a folder at the top.</li>
+    <li><b>Editor</b> (right) - the open table, with its toolbar.</li>
+    <li><b>Notes and description</b> - folds open under the editor: your note for the table, and the XDF's description of it.</li>
+    <li>On a narrow window (or a phone) the three areas become pages with buttons at the bottom.</li>
+</ul>
+<p>
+    The menu has sections for <b>Project</b>, <b>Files</b> (Open XDF, Auto-detect, recent BINs), <b>Tools</b> (Swap segments, Logging profiles, VE wizard),
+    <b>Records</b> (Open change log, Export notes) and <b>Checks</b> (Check checksums, Compare with BIN).
+</p>
+
+<h3 id="grid">Editing a table</h3>
+<p>
+    The grid works like a spreadsheet. Cells are coloured from blue (lowest) to red (highest). The axis values are frozen so you can always see which
+    row and column you are in.
+</p>
+<h4>Selecting</h4>
+<ul>
+    <li>Click a cell to select it; drag across cells, or Shift+click, to select a block.</li>
+    <li>Click a column heading or row heading to select the whole column or row. Ctrl+A selects everything.</li>
+    <li>The arrow keys move the selection; Shift+arrows grow it. A line above the grid shows the selection's size, minimum, maximum and average.</li>
+</ul>
+<h4>Typing a value</h4>
+<ul>
+    <li>Start typing a digit, or press <b>Enter</b> or <b>F2</b>, or double-click, to edit the selected cell. <b>Enter</b> stores the value and moves down; <b>Esc</b> cancels.</li>
+    <li><b>Shift+Enter</b> puts the typed value into <b>every selected cell</b>.</li>
+    <li>The BIN can only hold certain values (it stores whole numbers that are scaled). A typed value is rounded to the nearest one the BIN can hold, so
+        you may see 1.0 become 0.9998. That is the table's resolution, not a mistake.</li>
+</ul>
+<h4>Block tools</h4>
+<ul>
+    <li><b>+</b> and <b>-</b> nudge the selection by the smallest step the BIN can hold (hold Shift for ten steps).</li>
+    <li><b>Scale &times;</b> multiplies the selected cells by a factor (1.05 is +5%). With a single cell selected it scales the whole table.</li>
+    <li><b>Interpolate</b> (Ctrl+I) fills a selected block by blending between its four corners; the corners stay as they are.</li>
+    <li><b>Smooth</b> averages each selected cell with its neighbours inside the block; the corners stay fixed.</li>
+    <li><b>Copy</b> copies the whole table with its axes for a spreadsheet; Ctrl+C copies the selection and Ctrl+V pastes numbers copied from a
+        spreadsheet (one pasted value fills the whole selection).</li>
+</ul>
+<p>
+    Single values (one-cell tables) are edited by clicking them. A table that is a set of on/off flags shows a check box.
+    <b>3D view</b> shows a table as a surface.
+</p>
+
+<h3 id="undo">Undo, redo and history</h3>
+<p>
+    <b>Undo</b> and <b>Redo</b> (Ctrl+Z, Ctrl+Y, or the buttons beside the table name) step through your edits to the table, and each block tool counts as <b>one</b> step.
+    <b>History</b> lists recent edits: pick one to take back everything after it. Each open table keeps its own history. Nothing reaches the file until you save,
+    so closing without saving also throws the edits away.
+</p>
+
+<h3 id="tabs">Several tables open</h3>
+<p>
+    Pick a table in the list and it opens in a tab above the grid; picking it again switches to its tab. Close a tab with its
+    &#10005; or Ctrl+W. Closing a tab does not undo your edits (they are in the BIN); it only drops that table's undo history.
+    Opening a different BIN or XDF closes all the tabs.
+</p>
+
+<h3 id="meta">Pins, tags and notes</h3>
+<ul>
+    <li><b>Pin</b> keeps a table in the Pinned folder at the top of the list.</li>
+    <li><b>Tag</b> labels a table (Done, Needs Work, WOT, Review, Skip) and the list can be filtered by tag.</li>
+    <li>The <b>note</b> (under <b>Notes and description</b>) is for your own remarks on a table. In a project, notes are stored with the project.
+        <b>Export notes...</b> (menu, Records) writes them all to a text file.</li>
+</ul>
+
+<h3 id="compare">Compare</h3>
+<p>
+    <b>Compare with BIN...</b> (menu, Checks) marks every table that differs from another BIN of the same size with a dot, and every changed cell
+    in an open table with an orange frame and the old value in its tooltip. Tick <b>Changed tables only</b> to list just those tables.
+    Inside a project, every BIN of the project is compared with the project's base automatically. A BIN you open with "Just open it" from outside the project is not.
+    <b>Stop comparing</b> turns it off.
+</p>
+
+<h3 id="saving">Saving, checksums and Send to Flash</h3>
+<p>
+    <b>Save As...</b> writes your edited BIN to a new file (it never overwrites the BIN you opened). In a project it starts in <code>edits</code> and suggests the next
+    version name. Before writing, it <b>corrects the checksums</b> and then checks the result with PCM Hammer's own validator. The status bar says whether the file
+    is valid.
+</p>
+<ul>
+    <li>If the file is valid, <b>Send to Flash</b> appears. It switches to the Flash tab and puts the file's path on the clipboard for the Flash tab's file picker.</li>
+    <li>If it says the file is not valid, do not flash it.</li>
+    <li><b>Check checksums</b> (menu, Checks) checks the BIN as it is now, including unsaved edits, without changing it.</li>
+    <li>Closing the window, or switching project, asks before throwing away unsaved edits.</li>
+</ul>
+
+<h3 id="records">Change log and notes export</h3>
+<p>
+    Every edit, undo, redo, patch and segment swap is appended to a log: <code>changes.log</code> in a project, otherwise a <code>.changes</code> file beside the BIN.
+    Each entry has the time, the table, what was done and how many cells changed; small edits list every cell's old and new value. <b>Open change log</b> (menu, Records) opens it in your text editor.
+</p>
+
+<h3 id="ve-wizard">VE wizard</h3>
+<p>
+    The wizard suggests corrections to the open table (for example the main VE table) from a Logger recording. Open the table, then menu, Tools, <b>VE wizard...</b>.
+</p>
+<ol>
+    <li>Press <b>Newest Logger log</b> (the project's <code>logs</code> folder, or the Logger's folder) or <b>Open log...</b>.</li>
+    <li>Check the columns it picked: engine speed, load (MAP), the measurement, and an optional second trim.</li>
+    <li>Choose what the measurement is: an air/fuel ratio or lambda (divided by the target you enter), or a fuel trim percent (added to the second trim if chosen).</li>
+    <li>Set <b>Min samples per cell</b> and <b>Max change %</b>, tick <b>RPM runs along the table's columns</b> if it does, and press <b>Calculate</b>.</li>
+    <li>Review the list, then <b>Apply to table</b>. It is one edit you can undo.</li>
+</ol>
+<p>
+    Each logged sample goes into the nearest cell using the table's own axes, and a cell's correction is the average over its samples. The table's axes must list real values
+    (RPM and kPa), not just 1, 2, 3. These are <b>suggestions</b>: they only mean something for driving where that table actually controls the fuelling (for example speed-density, or MAF failure).
+    Review them before you use them.
+</p>
+
+<h3 id="profiles">Logging profiles</h3>
+<p>
+    Menu, Tools, <b>Logging profiles...</b> lists ready-made lists of what to log (VE tuning, fuel trims, spark and knock, MAF check). They live in
+    <code>Documents\PcmSuite\Profiles</code>, shared with the Logger, so a profile you save from the Logger appears here too. <b>Use in Logger</b> switches to the Logger tab and puts the
+    file's path on the clipboard: press Connect, then Params, Open Profile, and paste it into the file name box.
+</p>
+
+<h3 id="live">Live trace</h3>
+<p>
+    <b>Live</b> outlines, in blue, the cell the engine is in right now. It needs:
+</p>
+<ul>
+    <li>the Logger connected and <b>logging</b> (it stays connected when you switch to the Tuner),</li>
+    <li>engine speed and MAP being logged (the VE Tuning profile does),</li>
+    <li>a table with RPM on one axis and manifold pressure (kPa) on the other, with real axis values.</li>
+</ul>
+<p>
+    A line beside the table name shows the readings. If something is missing it says what. The trace only reads; it never changes the PCM or the BIN.
+</p>
+
+<h3 id="patches">Patches and segment swap</h3>
+<ul>
+    <li><b>Patches</b> from the XDF (such as a speed limiter or a code that disables something) show a page with <b>Apply patch</b> and <b>Take patch back</b>.</li>
+    <li><b>Swap segments...</b> (menu, Tools) copies whole calibration segments from another BIN into the open one. Some segments are marked risky because they can change the
+        vehicle's identity or leave the BIN inconsistent. <b>Undo segment swap</b> puts the overwritten bytes back.</li>
+</ul>
+
+<h3 id="drop">Drag and drop, command line</h3>
+<ul>
+    <li>Drop a <b>.bin</b> on the Tuner to open it. If that would switch project, or add the file to the open project, you are asked first.</li>
+    <li>Drop an <b>.xdf</b> to use it (a readable one is added to the XDF library). Drop a <b>project folder</b> or its <code>project.json</code> to open that project.</li>
+    <li><code>PcmSuite.exe "file.bin"</code> (or "Open with" from Explorer) opens that BIN in the Tuner; an .xdf argument loads that XDF.</li>
+</ul>
+
+<h3 id="keys">Keyboard shortcuts (in the grid)</h3>
+<dl>
+    <dt>Arrow keys, Shift+arrows</dt><dd>Move the selection, or grow it</dd>
+    <dt>Digit, Enter, F2</dt><dd>Start typing into the selected cell</dd>
+    <dt>Enter / Esc (while typing)</dt><dd>Store and move down / cancel</dd>
+    <dt>Shift+Enter</dt><dd>Fill the selection with the typed value</dd>
+    <dt>+ / - (Shift for x10)</dt><dd>Nudge the selection up / down</dd>
+    <dt>Ctrl+A</dt><dd>Select all</dd>
+    <dt>Ctrl+C / Ctrl+V</dt><dd>Copy / paste (spreadsheet friendly)</dd>
+    <dt>Ctrl+Z / Ctrl+Y</dt><dd>Undo / redo</dd>
+    <dt>Ctrl+I</dt><dd>Interpolate the selected block</dd>
+    <dt>Ctrl+W</dt><dd>Close the open table's tab</dd>
+    <dt>Esc</dt><dd>Clear the selection</dd>
+</dl>
+
+<h3 id="problems">When something goes wrong</h3>
+<ul>
+    <li><b>"No XDF found"</b> - the message lists the BIN's part numbers and the folders searched. Put an XDF with that number in its name in one of them, or use Open XDF.</li>
+    <li><b>"Cannot be read ... protected"</b> - see Protected XDFs above; use an unprotected XDF.</li>
+    <li><b>Values look wrong, or a warning mentions a table that "is not in this XDF"</b> - the XDF does not match this BIN, or an equation refers to a table the XDF lacks. Do not edit that table.</li>
+    <li><b>Live shows nothing</b> - the Logger must be connected and logging, with engine speed and MAP in the profile.</li>
+    <li><b>Save As says the file is not valid</b> - do not flash it. Run <b>Check checksums</b> and read the details; compare with the base to see what changed.</li>
+    <li><b>A dropped file does nothing</b> - the status bar at the bottom says what it expected.</li>
+</ul>

@@ -141,6 +141,12 @@ public partial class ProjectsView : OverlayPage
         this.Reload();
     }
 
+    private void OnHelp(object? sender, RoutedEventArgs e)
+    {
+        this.model?.RequestHelp("tuner#projects");
+        this.RequestClose();
+    }
+
     private void OnClose(object? sender, RoutedEventArgs e) => this.RequestClose();
 
     /// <summary>Set by the host so this page can open the new-project form over itself.</summary>

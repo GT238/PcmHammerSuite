@@ -1109,6 +1109,14 @@ public partial class TuneView : UserControl
         }
     }
 
+    private void OnHelp(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string topic })
+        {
+            this.ViewModel?.RequestHelp(topic);
+        }
+    }
+
     private async void OnProjects(object? sender, RoutedEventArgs e)
     {
         if (this.ViewModel == null)

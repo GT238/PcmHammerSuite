@@ -39,6 +39,7 @@
                 </TabItem.Header>
                 <ContentControl x:Name="TuneHost"/>
             </TabItem>
+            <TabItem Header="Help"><ContentControl x:Name="HelpHost"/></TabItem>
             <TabItem Header="Credits"><ContentControl x:Name="CreditsHost"/></TabItem>
         </TabControl>
     </DockPanel>

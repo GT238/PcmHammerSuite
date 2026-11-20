@@ -45,6 +45,13 @@
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Help tab: PcmSuite's own pages, plus PCM Hammer's help page taken straight from the submodule. -->
+  <ItemGroup>
+    <Content Include="Help\*.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\extern\PcmHammer\Apps\UI\Shared\help.html" Link="Help\PcmHammer-help.html"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Logging profiles for tuning tasks (PCM Hammer's .LogProfile format), offered from the Tune tab. -->
   <ItemGroup>
     <Content Include="Profiles\*.LogProfile" CopyToOutputDirectory="PreserveNewest" />

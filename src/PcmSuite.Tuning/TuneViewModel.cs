@@ -885,6 +885,11 @@ public partial class TuneViewModel : ObservableObject
         this.WatchReads(value);
     }
 
+    /// <summary>Raised to open the Help tab at a topic ("tuner") and optional section ("tuner#grid").</summary>
+    public event Action<string>? HelpRequested;
+
+    public void RequestHelp(string topic) => this.HelpRequested?.Invoke(topic);
+
     /// <summary>Raised when the project was created for reading from the PCM: the shell takes you to the Flash tab.</summary>
     public event Action<ProjectInfo>? FlashReadRequested;
 

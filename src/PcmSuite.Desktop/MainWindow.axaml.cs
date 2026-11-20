@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private const int FlashTab = 0;
     private const int LoggerTab = 1;
     private const int TuneTab = 2;
+    private const int HelpTab = 3;
 
     private readonly PCMHammerAvalonia.ViewModels.MainWindowViewModel flash = new();
     private readonly PCMLoggerAvalonia.ViewModels.MainWindowViewModel logger = new();
@@ -89,7 +90,17 @@ public partial class MainWindow : Window
 
         this.tuneView = new Tune.TuneView { DataContext = this.tune };
         this.TuneHost.Content = this.tuneView;
+        this.helpView = new HelpView();
+        this.HelpHost.Content = this.helpView;
         this.CreditsHost.Content = new CreditsView();
+
+        // "?" in the Tuner: open the Help tab at the right topic and section.
+        this.tune.HelpRequested += topic =>
+        {
+            string[] parts = topic.Split('#', 2);
+            this.helpView.Show(parts[0], parts.Length > 1 ? parts[1] : null);
+            this.Tabs.SelectedIndex = HelpTab;
+        };
 
         // The flasher loads its PCM kernels from files beside the exe. PCM Hammer only permits redistributing them
         // inside its official releases, so PcmSuite does not bundle them: tell the user instead of failing later.
@@ -185,6 +196,7 @@ public partial class MainWindow : Window
         };
     }
 
+    private readonly HelpView helpView;
     private readonly Tune.TuneViewModel tune;
     private readonly Tune.TuneView tuneView;
     private bool closeConfirmed;
@@ -217,10 +229,10 @@ public partial class MainWindow : Window
 
             string message;
             bool loggerHeld = (previous == LoggerTab && this.logger.IsConnected) || this.loggerInBackground;
-            if (loggerHeld && (next == LoggerTab || next == TuneTab))
+            if (loggerHeld && (next == LoggerTab || next == TuneTab || next == HelpTab))
             {
-                // Logger <-> Tune: the Logger keeps its connection so the Tune tab can follow the engine live.
-                this.loggerInBackground = next == TuneTab;
+                // Logger <-> Tuner (or Help): the Logger keeps its connection so the Tuner can follow the engine live.
+                this.loggerInBackground = next != LoggerTab;
                 message = next == TuneTab
                     ? "Logger stays connected for the live trace (switch Live on in a table). "
                     : string.Empty;
@@ -236,6 +248,11 @@ public partial class MainWindow : Window
             }
 
             this.currentTab = next;
+            if (next == HelpTab)
+            {
+                this.helpView.Refresh();
+            }
+
             this.ShellStatus.Text = message + this.ArrivalHint(next);
         }
         finally

@@ -453,9 +453,7 @@ namespace PcmSuite.Tuning.Core.Models
                 4 => integer is >= 32 and <= 126      // printable ASCII character
                      ? ((char)integer).ToString()
                      : "--",                          // unprogrammed / out-of-range byte
-                _ => scaled % 1 == 0 && DecimalPlaces > 0              // whole number — drop the ".0"
-                     ? ((long)scaled).ToString()
-                     : scaled.ToString($"F{Math.Max(0, DecimalPlaces)}"),
+                _ => scaled.ToString($"F{Math.Max(0, DecimalPlaces)}"),   // always the table's decimals, so columns line up
             };
         }
 

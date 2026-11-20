@@ -29,8 +29,12 @@
                     <Run Text="Project:"/> <Run Text="{Binding ProjectTitle}" FontWeight="SemiBold"/>
                 </TextBlock>
             </StackPanel>
-            <TextBlock Grid.Column="4" Text="● MODIFIED" Foreground="#E8A838" FontWeight="SemiBold"
-                       VerticalAlignment="Center" IsVisible="{Binding IsDirty}"/>
+            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBlock Text="● MODIFIED" Foreground="#E8A838" FontWeight="SemiBold"
+                           VerticalAlignment="Center" IsVisible="{Binding IsDirty}"/>
+                <Button Content="?" Click="OnHelp" Tag="tuner" Padding="12,4" FontWeight="SemiBold"
+                        ToolTip.Tip="Open the Tuner manual"/>
+            </StackPanel>
         </Grid>
 
         <!-- Slide-out menu over the content (same pattern as the mobile Logger) -->

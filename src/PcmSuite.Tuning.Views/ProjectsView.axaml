@@ -41,7 +41,10 @@
 
         <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
             <TextBlock x:Name="Message" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8"/>
-            <Button Grid.Column="1" Content="Close" Click="OnClose"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Help" Click="OnHelp"/>
+                <Button Content="Close" Click="OnClose"/>
+            </StackPanel>
         </Grid>
     </Grid>
 </local:OverlayPage>

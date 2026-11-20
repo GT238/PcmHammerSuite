@@ -1,0 +1,69 @@
+<h1 id="welcome">Welcome to PcmSuite</h1>
+
+<p>
+    PcmSuite puts the three jobs of tuning a GM PCM in one window: <b>Flash</b> (read and write the PCM),
+    <b>Logger</b> (record what the engine is doing) and <b>Tuner</b> (edit the calibration). A vehicle
+    <b>project</b> ties them together, so everything about one car is kept in one folder.
+</p>
+<p>
+    This prototype is built on PCM Hammer. The Flash and Logger tabs are PCM Hammer's own screens; the Tuner is
+    PcmSuite's own. Their help is under <b>Flash and Logger</b> in the topic list above.
+</p>
+<p>
+    <b>Looking for something?</b> Type a question or a few words in the search box above (for example "save the file" or "protected xdf"):
+    it searches all the help pages and takes you to the matching section. The <b>How do I...?</b> list under it has the common tasks.
+</p>
+
+<ol>
+    <li><a target="_self" href="#tabs">What each tab does</a></li>
+    <li><a target="_self" href="#workflow">A typical session</a></li>
+    <li><a target="_self" href="#adapter">One adapter at a time</a></li>
+    <li><a target="_self" href="#kernels">Kernel files</a></li>
+    <li><a target="_self" href="#safety">Before you flash</a></li>
+</ol>
+
+<h3 id="tabs">What each tab does</h3>
+<ul>
+    <li><b>Flash</b> - connect to the PCM, read its contents to a BIN file, write a BIN back, verify.</li>
+    <li><b>Logger</b> - choose the parameters to watch, see them live, and record them to a CSV file.</li>
+    <li><b>Tuner</b> - open a BIN with its XDF, edit tables, compare with another BIN, correct the checksums and save.</li>
+    <li><b>Help</b> - this page, PCM Hammer's help for Flash and Logger, and the Tuner manual.</li>
+    <li><b>Credits</b> - who made what.</li>
+</ul>
+
+<h3 id="workflow">A typical session</h3>
+<ol>
+    <li><b>Make a project</b> (Tuner, menu, Project, Projects..., New project...). Give it a name and the vehicle details,
+        and say where the tune starts.</li>
+    <li><b>Read the PCM</b> on the Flash tab. Save the read in the project's <code>reads</code> folder (the Flash tab
+        shows the path, and it is on the clipboard). The Tuner notices the new file and offers to open it. The first
+        read becomes the project's untouched base.</li>
+    <li><b>Edit</b> in the Tuner. Changes against the base are marked automatically. <b>Save As</b> writes a new numbered
+        file in the project's <code>edits</code> folder, with the checksums corrected.</li>
+    <li><b>Write it back</b> on the Flash tab. After a good Save As, the Tuner offers <b>Send to Flash</b>.</li>
+    <li><b>Log</b> a drive on the Logger tab with one of the ready-made tuning profiles. Recordings go to the project's
+        <code>logs</code> folder, and the Tuner's <b>VE wizard</b> can read the newest one and suggest corrections.</li>
+</ol>
+
+<h3 id="adapter">One adapter at a time</h3>
+<p>
+    Only one tab can use the adapter at a time. Leaving the Flash tab releases the adapter. The Logger stays connected when
+    you move between the Logger, the Tuner and Help, so the Tuner's <b>Live</b> trace can follow the engine; going to
+    Flash or Credits disconnects it. Flash operations that are running (read, write, verify) cannot be interrupted by
+    switching tabs: wait for them to finish or cancel them first.
+</p>
+
+<h3 id="kernels">Kernel files</h3>
+<p>
+    Reading and writing need PCM Hammer's PCM-side kernel files (<code>Kernel-*.bin</code>). PCM Hammer only allows them to be
+    redistributed inside its official releases, so PcmSuite does not include them. Copy them from an official PCM Hammer
+    release into the folder that contains <code>PcmSuite.exe</code>. If they are missing, the status bar at the bottom says so.
+</p>
+
+<h3 id="safety">Before you flash</h3>
+<ul>
+    <li>Keep the original read. Every project keeps its first BIN untouched in <code>reads</code>.</li>
+    <li>Only flash a file that <b>Save As</b> reported as valid. If it says the checksums could not be fixed, do not flash it.</li>
+    <li>Use a stable power supply (a battery charger) for the whole write, and do not interrupt it.</li>
+    <li>This is a prototype. Edits are suggestions you are responsible for; nothing here can know whether a tune is safe for your engine.</li>
+</ul>
