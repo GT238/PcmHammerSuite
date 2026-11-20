@@ -246,7 +246,7 @@ public sealed partial class VeWizardViewModel : ObservableObject
     }
 
     /// <summary>Index of the axis value closest to x, or -1 when x is clearly outside the axis.</summary>
-    private static int Nearest(double[] axis, double x)
+    internal static int Nearest(double[] axis, double x)
     {
         if (axis.Length == 0)
         {

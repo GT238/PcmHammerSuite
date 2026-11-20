@@ -23,11 +23,28 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // Starts at 1920 x 1080; on a smaller screen, shrink to fit instead of opening off the edge.
+        this.Opened += (_, _) =>
+        {
+            if (this.Screens.ScreenFromWindow(this) is { } screen)
+            {
+                double maxWidth = screen.WorkingArea.Width / screen.Scaling;
+                double maxHeight = screen.WorkingArea.Height / screen.Scaling;
+                if (this.Width > maxWidth || this.Height > maxHeight)
+                {
+                    this.Width = Math.Min(this.Width, maxWidth);
+                    this.Height = Math.Min(this.Height, maxHeight);
+                    this.Position = screen.WorkingArea.Position;
+                }
+            }
+        };
+
         this.FlashHost.Content = new PCMHammerAvalonia.Views.MainView { DataContext = this.flash };
         this.LoggerHost.Content = new PCMLoggerAvalonia.Views.MobileMainView { DataContext = this.logger };
         this.tune = new Tune.TuneViewModel
         {
             LogFolderProvider = () => this.logger.LogFolder,
+            LiveSource = new LoggerLiveSource(this.logger),
             ProfilesFolderProvider = () => Tune.LogProfileCatalog.SharedFolder,
         };
 
@@ -89,6 +106,7 @@ public partial class MainWindow : Window
             }
 
             bool holdsAdapter = (this.currentTab == LoggerTab && this.logger.IsConnected)
+                                || this.loggerInBackground
                                 || (this.currentTab == FlashTab && this.flash.SelectedDevice != null);
             if (!this.tune.IsDirty && !holdsAdapter)
             {
@@ -108,6 +126,12 @@ public partial class MainWindow : Window
             }
 
             await this.ReleaseAsync(this.currentTab);
+            if (this.loggerInBackground)
+            {
+                this.loggerInBackground = false;
+                await this.ReleaseAsync(LoggerTab);
+            }
+
             this.closeConfirmed = true;
             this.Close();
         };
@@ -143,7 +167,26 @@ public partial class MainWindow : Window
                 return;
             }
 
-            string message = await this.ReleaseAsync(previous);
+            string message;
+            bool loggerHeld = (previous == LoggerTab && this.logger.IsConnected) || this.loggerInBackground;
+            if (loggerHeld && (next == LoggerTab || next == TuneTab))
+            {
+                // Logger <-> Tune: the Logger keeps its connection so the Tune tab can follow the engine live.
+                this.loggerInBackground = next == TuneTab;
+                message = next == TuneTab
+                    ? "Logger stays connected for the live trace (switch Live on in a table). "
+                    : string.Empty;
+            }
+            else if (loggerHeld)
+            {
+                this.loggerInBackground = false;
+                message = await this.ReleaseAsync(LoggerTab);
+            }
+            else
+            {
+                message = await this.ReleaseAsync(previous);
+            }
+
             this.currentTab = next;
             this.ShellStatus.Text = message + this.ArrivalHint(next);
         }
@@ -183,6 +226,9 @@ public partial class MainWindow : Window
                 return string.Empty;
         }
     }
+
+    // True while the Logger is still connected although the Tune tab is showing (for the live trace).
+    private bool loggerInBackground;
 
     private string? flashFileHint;
     private string? loggerProfileHint;

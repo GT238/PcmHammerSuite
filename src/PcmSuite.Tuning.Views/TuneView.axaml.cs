@@ -7,8 +7,13 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace PcmSuite.Tune;
+
+/// <summary>Which table cell a text box shows.</summary>
+internal sealed record CellTag(int Row, int Column);
 
 public partial class TuneView : UserControl
 {
@@ -27,12 +32,40 @@ public partial class TuneView : UserControl
         }
 
         this.SizeChanged += (_, e) => this.ApplyLayout(e.NewSize.Width);
-        this.EditorScroll.ScrollChanged += (_, _) => this.UpdateFrozenHeaders();    }
+        this.EditorScroll.ScrollChanged += (_, _) => this.UpdateFrozenHeaders();
+
+        // The grid takes the keyboard (arrows, +/-, Ctrl+C/V/Z/Y) and the mouse (drag to select).
+        this.GridHost.Focusable = true;
+        this.GridHost.FocusAdorner = null;
+        this.GridHost.KeyDown += this.OnGridKeyDown;
+        this.GridHost.PointerMoved += this.OnGridPointerMoved;
+        this.GridHost.PointerReleased += this.OnGridPointerReleased;
+        this.historyFlyout = new Flyout { Content = this.historyList };
+        this.historyFlyout.Opened += this.OnHistoryOpened;
+        this.HistoryButton.Flyout = this.historyFlyout;
+    }
 
     private const double WideWidth = 900;
 
     private bool wide = true;
     private int page; // narrow layout: 0 parameters, 1 editor, 2 details
+
+    private bool descOpen;
+    private bool applyingLayout;
+
+    private void OnDescToggled(object? sender, RoutedEventArgs e)
+    {
+        if (!this.applyingLayout && this.wide)
+        {
+            this.descOpen = this.DescExpander.IsExpanded;
+        }
+    }
+
+    private void OnHideListChanged(object? sender, RoutedEventArgs e)
+    {
+        this.ListToggle.Content = this.ListToggle.IsChecked == true ? "Show list" : "Hide list";
+        this.ApplyLayout(this.Bounds.Width);
+    }
 
     private void OnNav(object? sender, RoutedEventArgs e)
     {
@@ -46,10 +79,17 @@ public partial class TuneView : UserControl
         this.wide = width >= WideWidth || width <= 0;
         this.NavBar.IsVisible = !this.wide;
 
+        this.ListToggle.IsVisible = this.wide;
+
+        // The description is folded away on a wide window (the table gets the height) and always open on its own page.
+        this.applyingLayout = true;
+        this.DescExpander.IsExpanded = !this.wide || this.descOpen;
+        this.applyingLayout = false;
         if (this.wide)
         {
-            this.Body.ColumnDefinitions[0].Width = new GridLength(360);
-            this.Body.ColumnDefinitions[1].Width = new GridLength(8);
+            bool hideList = this.ListToggle.IsChecked == true;
+            this.Body.ColumnDefinitions[0].Width = new GridLength(hideList ? 0 : 360);
+            this.Body.ColumnDefinitions[1].Width = new GridLength(hideList ? 0 : 8);
             this.Body.RowDefinitions[1].Height = GridLength.Auto;
             Grid.SetColumn(this.TreePane, 0);
             Grid.SetRowSpan(this.TreePane, 2);
@@ -61,7 +101,7 @@ public partial class TuneView : UserControl
             Grid.SetRow(this.DetailsPane, 1);
             Grid.SetColumnSpan(this.DetailsPane, 1);
             this.DetailsPane.Margin = new Thickness(0, 8, 0, 0);
-            this.TreePane.IsVisible = true;
+            this.TreePane.IsVisible = this.ListToggle.IsChecked != true;
             this.EditorPane.IsVisible = true;
             this.DetailsPane.IsVisible = true;
             return;
@@ -130,8 +170,391 @@ public partial class TuneView : UserControl
 
     // ---- The value grid, built in code so any table size works ----
 
+    // ---- Live trace: outline the cell the engine is in, from the Logger's readings ----
+
+    private LiveTraceViewModel? trace;
+    private DispatcherTimer? liveTimer;
+    private (int Row, int Column)? liveCell;
+
+    private void OnLiveChanged(object? sender, RoutedEventArgs e) => this.StartLiveIfOn();
+
+    private void StopLive()
+    {
+        this.liveTimer?.Stop();
+        this.liveTimer = null;
+        this.trace = null;
+        (int Row, int Column)? old = this.liveCell;
+        this.liveCell = null;
+        if (old != null)
+        {
+            this.StyleBorder(old.Value.Row, old.Value.Column);
+        }
+
+        this.LiveStatus.IsVisible = false;
+    }
+
+    private void StartLiveIfOn()
+    {
+        this.StopLive();
+        ValueEditorViewModel? editor = this.ViewModel?.Editor;
+        if (this.LiveToggle.IsChecked != true || editor == null || !editor.Is2D)
+        {
+            return;
+        }
+
+        this.LiveStatus.IsVisible = true;
+        ILiveSource? source = this.ViewModel?.LiveSource;
+        if (source == null)
+        {
+            this.LiveStatus.Text = "No Logger is attached.";
+            return;
+        }
+
+        this.trace = new LiveTraceViewModel(editor, source);
+        this.LiveStatus.Text = this.trace.Status;
+        if (!this.trace.CanTrace)
+        {
+            return;
+        }
+
+        this.liveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        this.liveTimer.Tick += (_, _) => this.ShowLive();
+        this.liveTimer.Start();
+        this.ShowLive();
+    }
+
+    private void ShowLive()
+    {
+        if (this.trace == null)
+        {
+            return;
+        }
+
+        this.trace.Update();
+        this.LiveStatus.Text = this.trace.Status;
+        (int Row, int Column)? next = this.trace.Row >= 0 ? (this.trace.Row, this.trace.Column) : null;
+        if (next == this.liveCell)
+        {
+            return;
+        }
+
+        (int Row, int Column)? old = this.liveCell;
+        this.liveCell = next;
+        if (old != null)
+        {
+            this.StyleBorder(old.Value.Row, old.Value.Column);
+        }
+
+        if (next != null)
+        {
+            this.StyleBorder(next.Value.Row, next.Value.Column);
+        }
+    }
+
+    /// <summary>Frame for one cell: cyan for the live cell, orange when it differs from the reference BIN.</summary>
+    private void StyleBorder(int row, int column)
+    {
+        ValueEditorViewModel? editor = this.ViewModel?.Editor;
+        if (this.cells == null || editor == null || row >= this.cells.GetLength(0) || column >= this.cells.GetLength(1))
+        {
+            return;
+        }
+
+        bool live = this.liveCell is { } cell && cell.Row == row && cell.Column == column;
+        bool selected = editor.Selection is { } range && range.Contains(row, column);
+        bool changed = editor.IsChanged(row, column);
+        TextBox box = this.cells[row, column];
+        box.BorderBrush = live ? Brushes.DeepSkyBlue : selected ? Brushes.White : changed ? Brushes.Orange : null;
+        box.BorderThickness = live ? new Thickness(3) : selected || changed ? new Thickness(2) : new Thickness(1);
+    }
+
+    // ---- Spreadsheet-style editing: select cells, then type, nudge, fill, paste, scale, interpolate, smooth ----
+
+    private ValueEditorViewModel? hooked;
+    private TextBox? editingBox;
+    private bool dragSelecting;
+    private CellRange? shownSelection;
+
+    private void Hook(ValueEditorViewModel? editor)
+    {
+        if (this.hooked != null)
+        {
+            this.hooked.SelectionChanged -= this.OnSelectionChanged;
+            this.hooked.DataChanged -= this.OnEditorDataChanged;
+        }
+
+        this.hooked = editor;
+        this.shownSelection = null;
+        this.editingBox = null;
+        this.SelectionText.Text = string.Empty;
+        if (editor != null)
+        {
+            editor.SelectionChanged += this.OnSelectionChanged;
+            editor.DataChanged += this.OnEditorDataChanged;
+        }
+    }
+
+    private void OnSelectionChanged()
+    {
+        ValueEditorViewModel? editor = this.hooked;
+        if (editor == null || this.cells == null)
+        {
+            return;
+        }
+
+        // Restyle only the cells that entered or left the selection.
+        CellRange? before = this.shownSelection;
+        CellRange? after = editor.Selection;
+        this.shownSelection = after;
+        int row0 = Math.Min(before?.Row0 ?? int.MaxValue, after?.Row0 ?? int.MaxValue);
+        int col0 = Math.Min(before?.Col0 ?? int.MaxValue, after?.Col0 ?? int.MaxValue);
+        int row1 = Math.Max(before?.Row1 ?? -1, after?.Row1 ?? -1);
+        int col1 = Math.Max(before?.Col1 ?? -1, after?.Col1 ?? -1);
+        for (int r = Math.Max(0, row0); r <= Math.Min(row1, editor.Rows - 1); r++)
+        {
+            for (int c = Math.Max(0, col0); c <= Math.Min(col1, editor.Columns - 1); c++)
+            {
+                this.StyleBorder(r, c);
+            }
+        }
+
+        this.SelectionText.Text = editor.SelectionStats();
+    }
+
+    /// <summary>The BIN changed under the cells (an edit, undo or redo): show the new values.</summary>
+    private void OnEditorDataChanged()
+    {
+        ValueEditorViewModel? editor = this.hooked;
+        if (editor == null || this.cells == null || editor.IsFlag)
+        {
+            return;
+        }
+
+        for (int r = 0; r < editor.Rows; r++)
+        {
+            for (int c = 0; c < editor.Columns; c++)
+            {
+                this.cells[r, c].Text = editor.CellText(r, c);
+            }
+        }
+
+        Recolor(editor, this.cells);
+        for (int r = 0; r < editor.Rows; r++)
+        {
+            for (int c = 0; c < editor.Columns; c++)
+            {
+                this.StyleBorder(r, c);
+            }
+        }
+
+        this.SelectionText.Text = editor.SelectionStats();
+    }
+
+    private void BeginEdit(int row, int column, string? initial)
+    {
+        if (this.cells == null)
+        {
+            return;
+        }
+
+        this.EndEdit(true, 0);
+        TextBox box = this.cells[row, column];
+        this.editingBox = box;
+        box.IsReadOnly = false;
+        box.Focus();
+        if (initial != null)
+        {
+            box.Text = initial;
+            box.CaretIndex = initial.Length;
+        }
+        else
+        {
+            box.SelectAll();
+        }
+    }
+
+    /// <summary>Finish typing into a cell. Commit stores the text; moveRows then steps the selection (Enter moves down).</summary>
+    private void EndEdit(bool commit, int moveRows)
+    {
+        TextBox? box = this.editingBox;
+        ValueEditorViewModel? editor = this.hooked;
+        if (box == null || editor == null || box.Tag is not CellTag(var row, var column))
+        {
+            this.editingBox = null;
+            return;
+        }
+
+        this.editingBox = null;
+        box.IsReadOnly = true;
+        if (commit)
+        {
+            editor.TryCommit(row, column, box.Text ?? string.Empty, out _);
+        }
+
+        box.Text = editor.CellText(row, column);
+        this.GridHost.Focus();
+        if (moveRows != 0)
+        {
+            editor.Move(moveRows, 0, false);
+        }
+    }
+
+    private void OnCellPressed(TextBox box, PointerPressedEventArgs e)
+    {
+        ValueEditorViewModel? editor = this.hooked;
+        if (editor == null || box.Tag is not CellTag(var row, var column) || !e.GetCurrentPoint(box).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (this.editingBox == box)
+        {
+            return; // clicking inside the cell being typed in: let the text box handle it
+        }
+
+        e.Handled = true;
+        if (e.ClickCount >= 2 || editor.IsSingleValue)
+        {
+            editor.Select(row, column);
+            this.BeginEdit(row, column, null);
+            return;
+        }
+
+        this.EndEdit(true, 0);
+        editor.Select(row, column, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+        this.GridHost.Focus();
+        this.dragSelecting = true;
+        e.Pointer.Capture(this.GridHost);
+    }
+
+    private void OnGridPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!this.dragSelecting || this.hooked == null)
+        {
+            return;
+        }
+
+        Visual? hit = this.GridHost.InputHitTest(e.GetPosition(this.GridHost)) as Visual;
+        while (hit != null && hit is not TextBox { Tag: CellTag })
+        {
+            hit = hit.GetVisualParent();
+        }
+
+        if (hit is TextBox { Tag: CellTag(var row, var column) } && this.hooked.Anchor != null)
+        {
+            if (this.hooked.Extent != (row, column))
+            {
+                this.hooked.Select(row, column, true);
+            }
+        }
+    }
+
+    private void OnGridPointerReleased(object? sender, PointerReleasedEventArgs e) => this.dragSelecting = false;
+
+    private async void OnGridKeyDown(object? sender, KeyEventArgs e)
+    {
+        ValueEditorViewModel? editor = this.hooked;
+        if (editor == null || this.cells == null || this.editingBox != null)
+        {
+            return;
+        }
+
+        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        e.Handled = true;
+        switch (e.Key)
+        {
+            case Key.Up: editor.Move(-1, 0, shift); return;
+            case Key.Down: editor.Move(1, 0, shift); return;
+            case Key.Left: editor.Move(0, -1, shift); return;
+            case Key.Right: editor.Move(0, 1, shift); return;
+            case Key.Escape: editor.ClearSelection(); return;
+            case Key.Enter or Key.F2 when editor.Anchor is { } cell:
+                this.BeginEdit(cell.Row, cell.Column, null);
+                return;
+            case Key.Add or Key.OemPlus:
+                editor.Nudge(shift ? 10 : 1);
+                return;
+            case Key.Subtract or Key.OemMinus:
+                editor.Nudge(shift ? -10 : -1);
+                return;
+            case Key.A when ctrl: editor.SelectAll(); return;
+            case Key.I when ctrl: editor.Interpolate(); return;
+            case Key.Z when ctrl: this.ViewModel?.UndoEdit(); return;
+            case Key.Y when ctrl: this.ViewModel?.RedoEdit(); return;
+            case Key.C when ctrl:
+                if (editor.SelectionText() is { } copied && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboardOut)
+                {
+                    await clipboardOut.SetTextAsync(copied);
+                }
+
+                return;
+            case Key.V when ctrl:
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboardIn && await clipboardIn.TryGetTextAsync() is { } pasted)
+                {
+                    editor.Paste(pasted);
+                }
+
+                return;
+        }
+
+        // A digit or decimal point starts typing into the selected cell, as in a spreadsheet.
+        if (!ctrl && e.KeySymbol is { Length: 1 } symbol && (char.IsDigit(symbol[0]) || symbol[0] == '.') && editor.Anchor is { } start)
+        {
+            this.BeginEdit(start.Row, start.Column, symbol);
+            return;
+        }
+
+        e.Handled = false;
+    }
+
+    private void OnInterpolate(object? sender, RoutedEventArgs e) => this.hooked?.Interpolate();
+
+    private void OnSmooth(object? sender, RoutedEventArgs e) => this.hooked?.Smooth();
+
+    private void OnScale(object? sender, RoutedEventArgs e)
+    {
+        if (this.hooked != null && this.ScaleBox.Value is { } factor)
+        {
+            this.hooked.Scale((double)factor);
+        }
+    }
+
+    private void OnRedo(object? sender, RoutedEventArgs e) => this.ViewModel?.RedoEdit();
+
+    private readonly StackPanel historyList = new() { Spacing = 2, MinWidth = 260 };
+    private readonly Flyout historyFlyout;
+
+    private void OnHistoryItem(object? sender, RoutedEventArgs e)
+    {
+        // The list is newest first, so the clicked row's index is how many edits to take back, plus itself.
+        if (sender is Button { Tag: int index } && this.hooked != null)
+        {
+            this.historyFlyout.Hide();
+            this.hooked.UndoSteps(index + 1);
+        }
+    }
+
+    private void OnHistoryOpened(object? sender, EventArgs e)
+    {
+        this.historyList.Children.Clear();
+        IReadOnlyList<string> history = this.hooked?.History ?? Array.Empty<string>();
+        if (history.Count == 0)
+        {
+            this.historyList.Children.Add(new TextBlock { Text = "No edits yet", Opacity = 0.7 });
+        }
+
+        for (int i = 0; i < history.Count; i++)
+        {
+            Button item = new() { Content = history[i], Tag = i, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+            item.Click += this.OnHistoryItem;
+            this.historyList.Children.Add(item);
+        }
+    }
+
     private void BuildEditor()
     {
+        this.StopLive();
         this.cells = null;
         this.columnHeaders.Clear();
         this.rowHeaders.Clear();
@@ -139,6 +562,7 @@ public partial class TuneView : UserControl
 
         ValueEditorViewModel? editor = this.ViewModel?.Editor;
         this.Surface.Editor = editor;
+        this.Hook(editor);
         if (editor == null)
         {
             return;
@@ -171,6 +595,13 @@ public partial class TuneView : UserControl
             for (int c = 0; c < editor.Columns; c++)
             {
                 TextBlock header = this.FrozenHeader(editor.ColumnLabel(c), 0, colOffset + c);
+                int headerColumn = c;
+                header.PointerPressed += (_, _) =>
+                {
+                    this.EndEdit(true, 0);
+                    editor.SelectColumn(headerColumn);
+                    this.GridHost.Focus();
+                };
                 this.columnHeaders.Add(header);
                 grid.Children.Add(header);
             }
@@ -181,6 +612,13 @@ public partial class TuneView : UserControl
             for (int r = 0; r < editor.Rows; r++)
             {
                 TextBlock header = this.FrozenHeader(editor.RowLabel(r), rowOffset + r, 0);
+                int headerRow = r;
+                header.PointerPressed += (_, _) =>
+                {
+                    this.EndEdit(true, 0);
+                    editor.SelectRow(headerRow);
+                    this.GridHost.Focus();
+                };
                 this.rowHeaders.Add(header);
                 grid.Children.Add(header);
             }
@@ -191,28 +629,49 @@ public partial class TuneView : UserControl
         {
             for (int c = 0; c < editor.Columns; c++)
             {
-                int row = r;
-                int col = c;
                 TextBox box = new()
                 {
                     Text = editor.CellText(r, c),
-                    MinWidth = 64,
+                    MinWidth = 56,
                     TextAlignment = TextAlignment.Center,
-                    Padding = new Thickness(4, 3),
+                    Padding = new Thickness(2, 2),
+                    MinHeight = 28,   // the theme's default (32) is what made the rows 34 px apart
                     Margin = new Thickness(1),
                     FontFamily = new FontFamily("Consolas, Menlo, DejaVu Sans Mono, monospace"),
+                    IsReadOnly = true,   // typing starts only after a double click, Enter or a digit key
+                    Tag = new CellTag(r, c),
                 };
-                box.LostFocus += (_, _) => this.CommitCell(editor, boxes, row, col);
+                box.AddHandler(InputElement.PointerPressedEvent, (_, e) => this.OnCellPressed(box, e), RoutingStrategies.Tunnel);
+                box.LostFocus += (_, _) =>
+                {
+                    if (this.editingBox == box)
+                    {
+                        this.EndEdit(true, 0);
+                    }
+                };
                 box.KeyDown += (_, e) =>
                 {
-                    if (e.Key == Key.Enter)
+                    if (this.editingBox != box)
                     {
-                        this.CommitCell(editor, boxes, row, col);
+                        return;
+                    }
+
+                    if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                    {
+                        // Shift+Enter: put the typed value into every selected cell.
+                        string typed = box.Text ?? string.Empty;
+                        this.EndEdit(false, 0);
+                        editor.FillText(typed);
+                        e.Handled = true;
+                    }
+                    else if (e.Key == Key.Enter)
+                    {
+                        this.EndEdit(true, 1);
                         e.Handled = true;
                     }
                     else if (e.Key == Key.Escape)
                     {
-                        boxes[row, col].Text = editor.CellText(row, col);
+                        this.EndEdit(false, 0);
                         e.Handled = true;
                     }
                 };
@@ -241,6 +700,7 @@ public partial class TuneView : UserControl
         Recolor(editor, boxes);
         this.GridHost.Content = grid;
         this.UpdateFrozenHeaders();
+        this.StartLiveIfOn();
     }
 
     // Axis labels stay in view while the table scrolls: they are shifted by the scroll offset.
@@ -292,19 +752,6 @@ public partial class TuneView : UserControl
         {
             header.RenderTransform = new TranslateTransform(offset.X, 0);
         }
-    }
-
-    private void CommitCell(ValueEditorViewModel editor, TextBox[,] boxes, int row, int col)
-    {
-        string typed = boxes[row, col].Text ?? string.Empty;
-        if (typed == editor.CellText(row, col))
-        {
-            return;
-        }
-
-        editor.TryCommit(row, col, typed, out string shown);
-        boxes[row, col].Text = shown;
-        Recolor(editor, boxes);
     }
 
     /// <summary>Tint each cell from blue (lowest) to red (highest) across the table.</summary>
@@ -572,27 +1019,8 @@ public partial class TuneView : UserControl
 
         this.ViewModel.UndoEdit();
 
-        // The bytes of the BIN changed under the cells: show them again.
-        if (this.ViewModel.Editor != null && this.cells != null)
-        {
-            ValueEditorViewModel editor = this.ViewModel.Editor;
-            if (editor.IsFlag)
-            {
-                this.BuildEditor();
-                return;
-            }
-
-            for (int r = 0; r < editor.Rows; r++)
-            {
-                for (int c = 0; c < editor.Columns; c++)
-                {
-                    this.cells[r, c].Text = editor.CellText(r, c);
-                }
-            }
-
-            Recolor(editor, this.cells);
-        }
-        else
+        // Flags have no cell grid: rebuild their check box. Tables refresh themselves through DataChanged.
+        if (this.ViewModel.Editor is { IsFlag: true } || this.ViewModel.Editor == null || this.cells == null)
         {
             this.BuildEditor();
         }

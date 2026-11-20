@@ -125,6 +125,9 @@ public partial class TuneViewModel : ObservableObject
     /// <summary>Where the Logger writes its log files, so the VE wizard can offer the newest one.</summary>
     public Func<string?>? LogFolderProvider { get; set; }
 
+    /// <summary>Live readings from the Logger, for the live trace on a table. Null when no Logger is attached.</summary>
+    public ILiveSource? LiveSource { get; set; }
+
     // ---- Logging profiles for tuning tasks ----
 
     /// <summary>The folder with the .LogProfile files offered for tuning tasks.</summary>
@@ -593,6 +596,14 @@ public partial class TuneViewModel : ObservableObject
         if (this.Editor != null && this.Editor.Undo())
         {
             this.Status = "Undid the last edit to " + this.Editor.Name;
+        }
+    }
+
+    public void RedoEdit()
+    {
+        if (this.Editor != null && this.Editor.Redo())
+        {
+            this.Status = "Redid the last undone edit to " + this.Editor.Name;
         }
     }
 

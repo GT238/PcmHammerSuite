@@ -13,7 +13,11 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     private readonly TableDefinition table;
     private readonly byte[] bin;
     private readonly Func<string, double>? crossRef;
-    private readonly Stack<Action> undoStack = new();
+    private readonly List<EditStep> undoStack = new();
+    private readonly List<EditStep> redoStack = new();
+
+    /// <summary>One undoable change: what it was called, how to take it back and how to do it again.</summary>
+    private sealed record EditStep(string Label, Action Undo, Action Redo);
 
     public ValueEditorViewModel(TableDefinition table, byte[] bin, Func<string, double>? crossRef)
     {
@@ -47,6 +51,11 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     public bool HasRowLabels => this.Rows > 1;
 
     public bool CanUndo => this.undoStack.Count > 0;
+
+    public bool CanRedo => this.redoStack.Count > 0;
+
+    /// <summary>Recent edits, newest first, for the history list.</summary>
+    public IReadOnlyList<string> History => this.undoStack.AsEnumerable().Reverse().Take(30).Select(s => s.Label).ToList();
 
     /// <summary>False when the column labels are only the placeholders 1..N, not real axis values.</summary>
     public bool ColumnLabelsAreReal => this.table.XLabelsAreReal;
@@ -95,26 +104,9 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             return false;
         }
 
-        double raw = Math.Round(Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax));
-        double oldRaw = this.table.GetRawValue(this.bin, row, column);
-        if (raw == oldRaw)
-        {
-            return false;
-        }
-
-        this.table.SetRawValue(this.bin, row, column, raw);
-
-        // A cell whose address lies outside this BIN cannot be written (the XDF may not match the file).
-        if (this.table.GetRawValue(this.bin, row, column) != raw)
-        {
-            shown = this.CellText(row, column);
-            return false;
-        }
-
-        this.undoStack.Push(() => this.table.SetRawValue(this.bin, row, column, oldRaw));
+        bool changed = this.ApplyRaw(new[] { (row, column, this.table.InverseScale(scaled, this.crossRef)) }, $"Edit {this.ColumnLabel(column)} x {this.RowLabel(row)}") > 0;
         shown = this.CellText(row, column);
-        this.Changed();
-        return true;
+        return changed;
     }
 
     /// <summary>The BIN to compare against (same size as the loaded one), or null.</summary>
@@ -183,12 +175,16 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     /// Sets many cells at once from scaled values (for example the VE wizard's corrections), as ONE undo step.
     /// Returns how many cells changed.
     /// </summary>
-    public int ApplyBatch(IEnumerable<(int Row, int Column, double Scaled)> edits)
+    public int ApplyBatch(IEnumerable<(int Row, int Column, double Scaled)> edits, string label = "Batch edit") =>
+        this.ApplyRaw(edits.Select(e => (e.Row, e.Column, this.table.InverseScale(e.Scaled, this.crossRef))).ToList(), label);
+
+    /// <summary>The one place cells change: rounds and clamps each raw value, writes it, and records a single undo step.</summary>
+    private int ApplyRaw(IEnumerable<(int Row, int Column, double Raw)> edits, string label)
     {
-        List<(int Row, int Column, double Old)> before = new();
-        foreach ((int row, int column, double scaled) in edits)
+        List<(int Row, int Column, double Old, double New)> done = new();
+        foreach ((int row, int column, double wanted) in edits)
         {
-            double raw = Math.Round(Math.Clamp(this.table.InverseScale(scaled, this.crossRef), this.RawMin, this.RawMax));
+            double raw = Math.Round(Math.Clamp(wanted, this.RawMin, this.RawMax));
             double old = this.table.GetRawValue(this.bin, row, column);
             if (raw == old)
             {
@@ -196,28 +192,45 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             }
 
             this.table.SetRawValue(this.bin, row, column, raw);
+
+            // A cell whose address lies outside this BIN cannot be written (the XDF may not match the file).
             if (this.table.GetRawValue(this.bin, row, column) != raw)
             {
                 continue;
             }
 
-            before.Add((row, column, old));
+            done.Add((row, column, old, raw));
         }
 
-        if (before.Count == 0)
+        if (done.Count == 0)
         {
             return 0;
         }
 
-        this.undoStack.Push(() =>
-        {
-            for (int i = before.Count - 1; i >= 0; i--)
+        this.Push(new EditStep(
+            label,
+            () =>
             {
-                this.table.SetRawValue(this.bin, before[i].Row, before[i].Column, before[i].Old);
-            }
-        });
+                for (int i = done.Count - 1; i >= 0; i--)
+                {
+                    this.table.SetRawValue(this.bin, done[i].Row, done[i].Column, done[i].Old);
+                }
+            },
+            () =>
+            {
+                foreach ((int row, int column, _, double next) in done)
+                {
+                    this.table.SetRawValue(this.bin, row, column, next);
+                }
+            }));
         this.Changed();
-        return before.Count;
+        return done.Count;
+    }
+
+    private void Push(EditStep step)
+    {
+        this.undoStack.Add(step);
+        this.redoStack.Clear();
     }
 
     public bool GetFlag() => this.table.GetRawValue(this.bin, 0, 0) != 0;
@@ -242,7 +255,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
         }
 
         this.bin[offset] = after;
-        this.undoStack.Push(() => this.bin[offset] = before);
+        this.Push(new EditStep("Flag " + this.Name, () => this.bin[offset] = before, () => this.bin[offset] = after));
         this.Changed();
     }
 
@@ -253,9 +266,39 @@ public sealed partial class ValueEditorViewModel : ObservableObject
             return false;
         }
 
-        this.undoStack.Pop().Invoke();
+        EditStep step = this.undoStack[^1];
+        this.undoStack.RemoveAt(this.undoStack.Count - 1);
+        step.Undo();
+        this.redoStack.Add(step);
         this.Changed();
         return true;
+    }
+
+    public bool Redo()
+    {
+        if (this.redoStack.Count == 0)
+        {
+            return false;
+        }
+
+        EditStep step = this.redoStack[^1];
+        this.redoStack.RemoveAt(this.redoStack.Count - 1);
+        step.Redo();
+        this.undoStack.Add(step);
+        this.Changed();
+        return true;
+    }
+
+    /// <summary>Undo several edits at once (jump back in the history list).</summary>
+    public int UndoSteps(int steps)
+    {
+        int undone = 0;
+        while (undone < steps && this.Undo())
+        {
+            undone++;
+        }
+
+        return undone;
     }
 
     private long RawMin => this.table.IsSigned ? (this.table.ElementBits == 8 ? -128 : this.table.ElementBits == 16 ? -32768 : int.MinValue) : 0;
@@ -303,6 +346,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     private void Changed()
     {
         this.OnPropertyChanged(nameof(this.CanUndo));
+        this.OnPropertyChanged(nameof(this.CanRedo));
         this.DataChanged?.Invoke();
     }
 }
