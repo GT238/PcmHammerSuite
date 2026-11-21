@@ -17,7 +17,7 @@ public sealed class CompareView : OverlayPage
     private const int MaxCellsShown = 400;
 
     private readonly TuneViewModel tune;
-    private readonly ListBox tableList = new() { SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle };
+    private readonly ListBox tableList = new() { SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock summary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock detail = new() { FontFamily = new FontFamily("Cascadia Mono, Consolas, Menlo, monospace"), FontSize = 12 };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
@@ -39,6 +39,14 @@ public sealed class CompareView : OverlayPage
         this.copyButton.Click += async (_, _) => await this.OnCopy();
         this.undoButton.Click += async (_, _) => await this.OnUndo();
         this.tableList.SelectionChanged += (_, _) => this.OnSelection();
+
+        // Long table names are cut with an ellipsis; the tooltip has the whole line.
+        this.tableList.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<string>((text, _) =>
+        {
+            TextBlock block = new() { Text = text, TextTrimming = TextTrimming.CharacterEllipsis };
+            ToolTip.SetTip(block, text);
+            return block;
+        });
         tune.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TuneViewModel.CanUndoCopyBack))
@@ -52,9 +60,10 @@ public sealed class CompareView : OverlayPage
         close.Click += (_, _) => this.RequestClose();
 
         ScrollViewer detailScroll = new() { Content = this.detail, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
-        Grid body = new() { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 10 };
+        // The list gets the full width (table names are long); the changed cells of the chosen table sit underneath it.
+        Grid body = new() { RowDefinitions = new RowDefinitions("3*,2*"), RowSpacing = 10 };
         body.Children.Add(this.tableList);
-        Grid.SetColumn(detailScroll, 1);
+        Grid.SetRow(detailScroll, 1);
         body.Children.Add(detailScroll);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto,Auto"), RowSpacing = 8 };
@@ -135,7 +144,7 @@ public sealed class CompareView : OverlayPage
         BinComparison result = await Task.Run(() => BinCompare.Compare(tables, open, bytes));
         this.diffs = result.Tables.ToList();
 
-        this.tableList.ItemsSource = this.diffs.Select(d => $"{d.Table.Name}   ({d.CellsChanged} of {d.CellsTotal} cells)").ToList();
+        this.tableList.ItemsSource = this.diffs.Select(d => $"{d.Table.Name}   ({d.CellsChanged} of {d.CellsTotal} cell{(d.CellsTotal == 1 ? string.Empty : "s")})").ToList();
         this.selectAll.IsEnabled = this.diffs.Count > 0;
         this.detail.Text = string.Empty;
         this.OnSelection();
