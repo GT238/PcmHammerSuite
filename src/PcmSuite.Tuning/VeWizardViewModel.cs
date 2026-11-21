@@ -86,10 +86,10 @@ public sealed partial class VeWizardViewModel : ObservableObject
                 this.HeadingsOptional.Add(c.Heading);
             }
 
-            this.RpmIndex = Find(data, "engine speed", "rpm");
-            this.LoadIndex = Find(data, "manifold", "map", "load");
-            this.ValueIndex = Find(data, "air/fuel", "afr", "lambda", "wideband", "short term", "stft");
-            int trim = Find(data, "long term", "ltft");
+            this.RpmIndex = LogBinning.FindColumn(data, "engine speed", "rpm");
+            this.LoadIndex = LogBinning.FindColumn(data, "manifold", "map", "load");
+            this.ValueIndex = LogBinning.FindColumn(data, "air/fuel", "afr", "lambda", "wideband", "short term", "stft");
+            int trim = LogBinning.FindColumn(data, "long term", "ltft");
             this.TrimIndex = trim < 0 ? 0 : trim + 1;
             this.Mode = this.ValueIndex >= 0 && data.Columns[this.ValueIndex].Name.Contains("term", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             this.Results.Clear();
@@ -120,75 +120,43 @@ public sealed partial class VeWizardViewModel : ObservableObject
             return;
         }
 
-        if (!this.editor.ColumnLabelsAreReal || !this.editor.RowLabelsAreReal)
+        if (!LogBinning.TryReadAxes(this.editor, out double[] colAxis, out double[] rowAxis, out string axisError))
         {
-            this.Status = "This table's axis values are not listed in the XDF (they are stored in the BIN), so the wizard cannot " +
-                          "tell which cell a sample belongs to. Choose a table whose axes show real values, such as RPM and kPa.";
+            this.Status = axisError;
             return;
         }
 
         int rows = this.editor.Rows;
         int cols = this.editor.Columns;
-        double[] colAxis = new double[cols];
-        double[] rowAxis = new double[rows];
-        for (int c = 0; c < cols; c++)
-        {
-            if (!double.TryParse(this.editor.ColumnLabel(c), NumberStyles.Float, CultureInfo.InvariantCulture, out colAxis[c]))
-            {
-                this.Status = "This table's column labels are not numbers, so samples cannot be placed in it.";
-                return;
-            }
-        }
-
-        for (int r = 0; r < rows; r++)
-        {
-            if (!double.TryParse(this.editor.RowLabel(r), NumberStyles.Float, CultureInfo.InvariantCulture, out rowAxis[r]))
-            {
-                this.Status = "This table's row labels are not numbers, so samples cannot be placed in it.";
-                return;
-            }
-        }
-
-        double[] rpmAxis = this.RpmOnColumns ? colAxis : rowAxis;
-        double[] loadAxis = this.RpmOnColumns ? rowAxis : colAxis;
-
-        double[,] sum = new double[rows, cols];
-        int[,] count = new int[rows, cols];
-        int used = 0;
-        int outside = 0;
         int trimColumn = this.TrimIndex - 1;
+        int valueColumn = this.ValueIndex;
+        bool afr = this.Mode == 0;
+        double target = this.Target;
 
-        foreach (double[] sample in this.log.Samples)
-        {
-            double rpm = sample[this.RpmIndex];
-            double load = sample[this.LoadIndex];
-            double value = sample[this.ValueIndex];
-            double trim = trimColumn >= 0 ? sample[trimColumn] : 0;
-            if (double.IsNaN(rpm) || double.IsNaN(load) || double.IsNaN(value) || double.IsNaN(trim) || rpm <= 0)
+        // Each sample becomes a fuel correction factor; one the wizard cannot use (no reading, or a factor of zero or less) returns NaN and is skipped.
+        CellStats stats = LogBinning.Bin(
+            this.log,
+            this.RpmIndex,
+            this.LoadIndex,
+            sample =>
             {
-                continue;
-            }
+                double value = sample[valueColumn];
+                double trim = trimColumn >= 0 ? sample[trimColumn] : 0;
+                if (double.IsNaN(value) || double.IsNaN(trim))
+                {
+                    return double.NaN;
+                }
 
-            int rpmCell = Nearest(rpmAxis, rpm);
-            int loadCell = Nearest(loadAxis, load);
-            if (rpmCell < 0 || loadCell < 0)
-            {
-                outside++;
-                continue;
-            }
-
-            double factor = this.Mode == 0 ? value / this.Target : 1 + (value + trim) / 100.0;
-            if (double.IsNaN(factor) || double.IsInfinity(factor) || factor <= 0)
-            {
-                continue;
-            }
-
-            int row = this.RpmOnColumns ? loadCell : rpmCell;
-            int col = this.RpmOnColumns ? rpmCell : loadCell;
-            sum[row, col] += factor;
-            count[row, col]++;
-            used++;
-        }
+                double factor = afr ? value / target : 1 + (value + trim) / 100.0;
+                return factor <= 0 ? double.NaN : factor;
+            },
+            colAxis,
+            rowAxis,
+            this.RpmOnColumns);
+        int used = stats.Used;
+        int outside = stats.Outside;
+        int[,] count = stats.Count;
+        double[,] sum = stats.Sum;
 
         double limit = this.MaxChange / 100.0;
         for (int r = 0; r < rows; r++)
@@ -228,51 +196,4 @@ public sealed partial class VeWizardViewModel : ObservableObject
     /// <summary>Put the proposed values into the open table as one undoable edit.</summary>
     public int Apply() =>
         this.editor.ApplyBatch(this.Results.Select(r => (r.Row, r.Column, r.NewScaled)), "VE wizard corrections");
-
-    private static int Find(LoggedData data, params string[] keywords)
-    {
-        for (int i = 0; i < data.Columns.Count; i++)
-        {
-            foreach (string keyword in keywords)
-            {
-                if (data.Columns[i].Heading.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return i;
-                }
-            }
-        }
-
-        return -1;
-    }
-
-    /// <summary>Index of the axis value closest to x, or -1 when x is clearly outside the axis.</summary>
-    internal static int Nearest(double[] axis, double x)
-    {
-        if (axis.Length == 0)
-        {
-            return -1;
-        }
-
-        double min = axis.Min();
-        double max = axis.Max();
-        double edge = axis.Length > 1 ? (max - min) / (axis.Length - 1) : 0;
-        if (x < min - edge || x > max + edge)
-        {
-            return -1;
-        }
-
-        int best = 0;
-        double bestDistance = double.MaxValue;
-        for (int i = 0; i < axis.Length; i++)
-        {
-            double d = Math.Abs(axis[i] - x);
-            if (d < bestDistance)
-            {
-                bestDistance = d;
-                best = i;
-            }
-        }
-
-        return best;
-    }
 }

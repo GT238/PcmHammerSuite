@@ -126,8 +126,8 @@ public sealed partial class LiveTraceViewModel : ObservableObject
             load *= 100;
         }
 
-        int rpmCell = VeWizardViewModel.Nearest(this.rpmAxis, rpm.Value);
-        int loadCell = VeWizardViewModel.Nearest(this.loadAxis, load);
+        int rpmCell = LogBinning.Nearest(this.rpmAxis, rpm.Value);
+        int loadCell = LogBinning.Nearest(this.loadAxis, load);
         string reading = $"{rpm.Value:0} rpm, {load:0.#} {loadUnits}";
         if (rpmCell < 0 || loadCell < 0)
         {

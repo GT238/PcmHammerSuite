@@ -79,6 +79,8 @@
                                 ToolTip.Tip="Ready-made lists of what to log for VE, fuel trim, spark and MAF tuning"/>
                         <Button Content="VE wizard..." Click="OnVeWizard" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Suggest corrections for the open table from a Logger log file"/>
+                        <Button Content="Log map..." Click="OnLogMap" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Show where a logged drive went on the open table: samples per cell, or the average, lowest or highest of a channel"/>
                         <Button Content="Hex view..." Click="OnHexView" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Browse the BIN byte by byte, search it, and list every difference from another BIN"/>
 

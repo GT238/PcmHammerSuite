@@ -18,6 +18,7 @@
     <li><a target="_self" href="#saving">Saving, checksums and Send to Flash</a></li>
     <li><a target="_self" href="#records">Change log and notes export</a></li>
     <li><a target="_self" href="#ve-wizard">VE wizard</a></li>
+    <li><a target="_self" href="#log-map">Log map</a></li>
     <li><a target="_self" href="#profiles">Logging profiles</a></li>
     <li><a target="_self" href="#live">Live trace</a></li>
     <li><a target="_self" href="#patches">Patches and segment swap</a></li>
@@ -195,6 +196,19 @@
     (RPM and kPa), not just 1, 2, 3. These are <b>suggestions</b>: they only mean something for driving where that table actually controls the fuelling (for example speed-density, or MAF failure).
     Review them before you use them.
 </p>
+
+<h3 id="log-map">Log map</h3>
+<p>
+    <b>Log map...</b> (Tools) shows where a logged drive actually went on the open table. Select a table with real axis values (the main VE table, for example),
+    open a log written by the Logger (or use <b>Newest Logger log</b>), and check that the engine speed and load columns are the right ones.
+    Each sample is placed in the cell the table's own axes put it in, the same way the VE wizard does it. Nothing in the BIN changes.
+</p>
+<ul>
+    <li>By default a cell shows <b>how many samples</b> landed there, and the shading gets stronger with more samples. Empty cells are the ones the engine never visited, so there is nothing to learn about them from this log.</li>
+    <li>Choose a channel under <b>Show</b> (fuel trim, air/fuel ratio, knock retard...) and a <b>Figure</b> (average, lowest or highest) to see that instead, shaded from blue (low) to red (high).</li>
+    <li>Point at a cell for its sample count, average, lowest and highest, and the table's own value. <b>Show the table's own values too</b> prints that value under each figure.</li>
+    <li>If the map looks sideways, tick or untick <b>Engine speed runs along the table's columns</b>.</li>
+</ul>
 
 <h3 id="profiles">Logging profiles</h3>
 <p>

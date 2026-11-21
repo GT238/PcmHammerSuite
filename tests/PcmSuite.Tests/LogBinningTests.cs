@@ -1,0 +1,162 @@
+using System.Globalization;
+using PcmHacking;
+using PcmSuite.Tune;
+using PcmSuite.Tuning.Core.Models;
+using Xunit;
+
+namespace PcmSuite.Tests;
+
+/// <summary>Placing logged samples in a table's cells, and the VE wizard that relies on it.</summary>
+public class LogBinningTests
+{
+    private static readonly double[] Rpm = { 1000, 2000, 3000 };
+    private static readonly double[] Kpa = { 40, 60, 80 };
+
+    /// <summary>A 3 x 3 table: engine speed across the columns, load down the rows, every cell holding 100.</summary>
+    private static ValueEditorViewModel Table(out byte[] bin)
+    {
+        TableDefinition table = new()
+        {
+            Name = "Test VE",
+            Address = 0,
+            Rows = 3,
+            Columns = 3,
+            ElementBits = 8,
+            ScalingEquation = "X",
+            XLabels = Rpm.Select(v => v.ToString(CultureInfo.InvariantCulture)).ToList(),
+            YLabels = Kpa.Select(v => v.ToString(CultureInfo.InvariantCulture)).ToList(),
+            XLabelsAreReal = true,
+            YLabelsAreReal = true,
+            YUnits = "kPa",
+        };
+
+        bin = Enumerable.Repeat((byte)100, 64).ToArray();
+        return new ValueEditorViewModel(table, bin, null);
+    }
+
+    private static LoggedData Log(params double[][] samples) => new(
+        new[]
+        {
+            LogFileReader.ParseHeading("PID 000C: Engine Speed (RPM)"),
+            LogFileReader.ParseHeading("PID 000B: Manifold Absolute Pressure (kPa)"),
+            LogFileReader.ParseHeading("PID 0034: Air/Fuel Ratio (AFR)"),
+        },
+        samples.Select((_, i) => DateTime.MinValue.AddSeconds(i)).ToList(),
+        samples,
+        0);
+
+    [Theory]
+    [InlineData(1000, 0)]
+    [InlineData(1400, 0)]
+    [InlineData(1600, 1)]
+    [InlineData(3000, 2)]
+    [InlineData(3400, 2)]    // within half a step beyond the last cell
+    [InlineData(4200, -1)]   // clearly outside the table
+    [InlineData(-200, -1)]
+    public void Nearest_PicksTheClosestAxisValue(double x, int expected) =>
+        Assert.Equal(expected, LogBinning.Nearest(Rpm, x));
+
+    [Fact]
+    public void Nearest_OfAnEmptyAxis_IsOutside() => Assert.Equal(-1, LogBinning.Nearest(Array.Empty<double>(), 5));
+
+    [Fact]
+    public void Axes_AreReadFromTheTable()
+    {
+        ValueEditorViewModel editor = Table(out _);
+        Assert.True(LogBinning.TryReadAxes(editor, out double[] cols, out double[] rows, out _));
+        Assert.Equal(Rpm, cols);
+        Assert.Equal(Kpa, rows);
+    }
+
+    [Fact]
+    public void Axes_AreRefused_WhenTheXdfDoesNotListThem()
+    {
+        ValueEditorViewModel editor = Table(out _);
+        editor.Table.XLabelsAreReal = false;
+        Assert.False(LogBinning.TryReadAxes(editor, out _, out _, out string error));
+        Assert.Contains("axis values", error);
+    }
+
+    [Fact]
+    public void Bin_CountsAverageMinMax_PerCell_AndCountsStrays()
+    {
+        LoggedData log = Log(
+            new double[] { 2000, 60, 14.0 },
+            new double[] { 2100, 58, 15.0 },
+            new double[] { 1900, 62, 16.0 },
+            new double[] { 1000, 40, 12.0 },
+            new double[] { 9000, 60, 14.0 },     // beyond the table
+            new double[] { 0, 60, 14.0 },        // engine not running
+            new[] { 2000, 60, double.NaN });     // no reading
+
+        CellStats stats = LogBinning.Bin(log, 0, 1, s => s[2], Rpm, Kpa, rpmOnColumns: true);
+
+        Assert.Equal(3, stats.Count[1, 1]);
+        Assert.Equal(15.0, stats.Average(1, 1), 6);
+        Assert.Equal(14.0, stats.Min[1, 1]);
+        Assert.Equal(16.0, stats.Max[1, 1]);
+        Assert.Equal(1, stats.Count[0, 0]);
+        Assert.Equal(4, stats.Used);
+        Assert.Equal(1, stats.Outside);
+        Assert.True(double.IsNaN(stats.Value(CellStat.Average, 2, 2)));
+        Assert.Equal(3, stats.MaxCount());
+    }
+
+    [Fact]
+    public void Bin_PutsRpmOnTheRows_WhenTheTableIsTheOtherWayRound()
+    {
+        // Same axes swapped: rows are engine speed, columns are load.
+        LoggedData log = Log(new double[] { 3000, 40, 14.0 });
+        CellStats stats = LogBinning.Bin(log, 0, 1, s => s[2], Kpa, Rpm, rpmOnColumns: false);
+        Assert.Equal(1, stats.Count[2, 0]);
+    }
+
+    [Fact]
+    public void Bin_WithoutAMeasurement_JustCounts()
+    {
+        LoggedData log = Log(new double[] { 2000, 60, 14.0 }, new double[] { 2000, 60, 99.0 });
+        CellStats stats = LogBinning.Bin(log, 0, 1, _ => 1, Rpm, Kpa, true);
+        Assert.Equal(2, stats.Count[1, 1]);
+        Assert.Equal(2.0, stats.Value(CellStat.Count, 1, 1));
+    }
+
+    [Fact]
+    public async Task VeWizard_ProposesTheAverageCorrection_AndIgnoresThinCells()
+    {
+        ValueEditorViewModel editor = Table(out _);
+        string path = Path.Combine(Path.GetTempPath(), "pcmsuite-bin-" + Guid.NewGuid().ToString("N") + ".csv");
+        try
+        {
+            List<string> lines = new() { "Time, Elapsed, PID 000C: Engine Speed (RPM), PID 000B: Manifold Absolute Pressure (kPa), PID 0034: Air/Fuel Ratio (AFR)" };
+            for (int i = 0; i < 6; i++)
+            {
+                lines.Add($"2026-01-01 00:00:{i:00}Z, {i}, 2000, 60, 16.17");     // 10% lean in the middle cell
+            }
+
+            lines.Add("2026-01-01 00:00:07Z, 7, 1000, 40, 14.7");                 // only two samples: below the minimum
+            lines.Add("2026-01-01 00:00:08Z, 8, 1000, 40, 14.7");
+            lines.Add("2026-01-01 00:00:09Z, 9, 9000, 60, 14.7");                 // outside the table
+            await File.WriteAllLinesAsync(path, lines);
+
+            VeWizardViewModel wizard = new(editor);
+            await wizard.LoadAsync(path);
+            Assert.Equal(0, wizard.RpmIndex);
+            Assert.Equal(1, wizard.LoadIndex);
+            Assert.Equal(2, wizard.ValueIndex);
+
+            wizard.Calculate();
+
+            VeCellResult cell = Assert.Single(wizard.Results);
+            Assert.Equal(1, cell.Row);
+            Assert.Equal(1, cell.Column);
+            Assert.Equal(6, cell.Samples);
+            Assert.Equal(110.0, cell.NewScaled, 1);
+            Assert.Contains("8 samples used", wizard.Summary);
+            Assert.Contains("1 fell outside", wizard.Summary);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+}

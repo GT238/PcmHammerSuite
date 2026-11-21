@@ -922,6 +922,22 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(new SegmentSwapView(vm, model));
     }
 
+    private async void OnLogMap(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm?.Editor is not { Is2D: true } editor)
+        {
+            if (vm != null)
+            {
+                vm.Status = "Select a table with several rows and columns first (for example the main VE table), then open the log map.";
+            }
+
+            return;
+        }
+
+        await this.ShowOverlayAsync(new LogMapView(new LogMapViewModel(editor), vm.LogFolderProvider));
+    }
+
     private async void OnHexView(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;
