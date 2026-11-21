@@ -878,9 +878,16 @@ public partial class TuneView : UserControl
 
     private void OnSendToFlash(object? sender, RoutedEventArgs e) => this.ViewModel?.RequestSendToFlash();
 
-    private async void OnOpenRecent(object? sender, RoutedEventArgs e)
+    private async void OnOpenRecent(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is Button { DataContext: string path } && this.ViewModel != null && await this.ConfirmDiscardAsync())
+        if (sender is not ComboBox { SelectedItem: string path } combo)
+        {
+            return;
+        }
+
+        // The box is a menu, not a setting: put it back to its prompt so the same file can be picked again.
+        combo.SelectedItem = null;
+        if (this.ViewModel != null && await this.ConfirmDiscardAsync())
         {
             await this.ViewModel.OpenBinAsync(path);
         }
