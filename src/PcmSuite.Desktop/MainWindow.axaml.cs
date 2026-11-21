@@ -71,8 +71,10 @@ public partial class MainWindow : Window
             }
         };
 
-        this.FlashHost.Content = new PCMHammerAvalonia.Views.MainView { DataContext = this.flash };
-        this.LoggerHost.Content = new PCMLoggerAvalonia.Views.MobileMainView { DataContext = this.logger };
+        // PCM Hammer's desktop layouts: the flasher's menu / side panel / status bar, and the logger's full desktop view
+        // (not the phone-style views, which are what PcmSuite showed at first).
+        this.FlashHost.Content = new FlashDesktopView { DataContext = this.flash };
+        this.LoggerHost.Content = new PCMLoggerAvalonia.Views.MainView { DataContext = this.logger };
         this.tune = new Tune.TuneViewModel
         {
             LogFolderProvider = () => this.logger.LogFolder,

@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PCMHammerAvalonia.ViewModels"
+             x:Class="PcmSuite.FlashDesktopView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <!--
+        The desktop layout of PCM Hammer's flasher: menu bar, device / operations / kernel panel on the left, the
+        results and debug logs on the right, and a status bar with progress. PCM Hammer builds this inside its own
+        window, so it cannot be hosted in a tab as it is; this is the same layout and the same view model, minus the
+        window chrome and the Help and Credits tabs (PcmSuite has its own). It can go once PCM Hammer moves this layout
+        into a control, as its Logger already has.
+    -->
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <Border BorderBrush="{DynamicResource ControlElevationBorderBrush}" BorderThickness="0,0,0,1">
+            <Menu HorizontalAlignment="Left">
+                <MenuItem Header="_File">
+                    <MenuItem Header="Save _Results Log" Command="{Binding SaveResultsLogCommand}"/>
+                    <MenuItem Header="Save _Debug Log" Command="{Binding SaveDebugLogCommand}"/>
+                </MenuItem>
+                <MenuItem Header="_Tools">
+                    <MenuItem Header="_Read Entire PCM" Command="{Binding ReadPCMCommand}"/>
+                    <MenuItem Header="_Verify Entire PCM" Command="{Binding VerifyPCMCommand}"/>
+                    <MenuItem Header="_Change VIN" Command="{Binding ChangeVINCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Write _Parameters" Command="{Binding WriteParametersCommand}"/>
+                    <MenuItem Header="Write _OS, Calibration &amp; Boot" Command="{Binding WriteOSCalibrationBootCommand}"/>
+                    <MenuItem Header="Write _Full Flash (Clone)" Command="{Binding WriteFullFlashCloneCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="_Test File Checksums..." Command="{Binding TestFileChecksumsCommand}"/>
+                    <MenuItem Header="Brute Force _Unlock..." Command="{Binding BruteForceUnlockCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="_Halt Running Kernel" Command="{Binding HaltRunningKernelCommand}"/>
+                </MenuItem>
+                <MenuItem Header="_Options">
+                    <MenuItem Header="_User Defined Key" Command="{Binding UserDefinedKeyCommand}"/>
+                    <MenuItem Header="_Settings" Command="{Binding SettingsCommand}"/>
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    Padding="12,4">
+                <StackPanel Spacing="8">
+                    <GroupBox Header="Device">
+                        <StackPanel Spacing="5">
+                            <Button Content="_Select Device" Command="{Binding SelectDeviceCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="Re-_Initialize Device" Command="{Binding ReInitializeDeviceCommand}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="Operations">
+                        <StackPanel Spacing="5">
+                            <Button Content="Read _Properties" Command="{Binding ReadPropertiesCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="Read P_CM" Command="{Binding ReadPCMCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="_Write PCM" Command="{Binding WritePCMCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="T_est Write" Command="{Binding TestWriteCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="_Verify PCM" Command="{Binding VerifyPCMCommand}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="Kernel">
+                        <StackPanel Spacing="5">
+                            <Button Content="_Halt Running Kernel" Command="{Binding HaltRunningKernelCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Content="_Cancel" Command="{Binding CancelCurrentCommand}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="{DynamicResource LayerFillColorAltBrush}">
+                <TabControl Margin="0,0,0,12">
+                    <TabItem>
+                        <TabItem.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Results"/>
+                                <Button Classes="CopyButtonStyle"
+                                        Classes.copied="{Binding IsResultsCopiedFeedbackVisible}"
+                                        Command="{Binding CopyLogCommand}"
+                                        CommandParameter="{Binding Text, ElementName=ResultsLogTextBox}"/>
+                            </StackPanel>
+                        </TabItem.Header>
+                        <Border Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                                BorderBrush="{DynamicResource SystemControlBackgroundBaseMediumLowBrush}"
+                                BorderThickness="1"
+                                Margin="0,4,0,0">
+                            <ScrollViewer x:Name="ResultsScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                <SelectableTextBlock x:Name="ResultsLogTextBox"
+                                                     Text="{Binding LogText}"
+                                                     TextWrapping="Wrap"
+                                                     FontFamily="Consolas, Menlo, DejaVu Sans Mono, Liberation Mono, monospace"/>
+                            </ScrollViewer>
+                        </Border>
+                    </TabItem>
+
+                    <TabItem>
+                        <TabItem.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Debug"/>
+                                <Button Classes="CopyButtonStyle"
+                                        Classes.copied="{Binding IsDebugCopiedFeedbackVisible}"
+                                        Command="{Binding CopyLogCommand}"
+                                        CommandParameter="{Binding Text, ElementName=DebugLogTextBox}"/>
+                            </StackPanel>
+                        </TabItem.Header>
+                        <Border Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+                                BorderBrush="{DynamicResource SystemControlBackgroundBaseMediumLowBrush}"
+                                BorderThickness="1"
+                                Margin="0,4,0,0">
+                            <ScrollViewer x:Name="DebugScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                <SelectableTextBlock x:Name="DebugLogTextBox"
+                                                     Text="{Binding DebugLogText}"
+                                                     TextWrapping="Wrap"
+                                                     FontFamily="Consolas, Menlo, DejaVu Sans Mono, Liberation Mono, monospace"/>
+                            </ScrollViewer>
+                        </Border>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsOperationRunning}">
+                    <TextBlock Text="{Binding RetryCount, StringFormat='Retries: {0}'}" VerticalAlignment="Center"/>
+                    <Rectangle Width="1" Height="12" Fill="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+                    <TextBlock Text="{Binding TransferRate, StringFormat='{}{0} kbps'}" VerticalAlignment="Center"/>
+                    <Rectangle Width="1" Height="12" Fill="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+                    <ProgressBar Value="{Binding ProgressPercent}" Minimum="0" Maximum="100" Width="150" Height="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding ProgressPercent, StringFormat='{}{0:0}%'}" VerticalAlignment="Center"/>
+                    <Rectangle Width="1" Height="12" Fill="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                               IsVisible="{Binding TimeRemaining, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <TextBlock Text="{Binding TimeRemaining}" VerticalAlignment="Center" Margin="0,0,5,0"
+                               IsVisible="{Binding TimeRemaining, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
