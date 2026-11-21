@@ -23,7 +23,8 @@ public sealed class HexView : OverlayPage
     private readonly TextBlock info = new() { TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Cascadia Mono, Consolas, Menlo, monospace"), FontSize = 12 };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.75 };
     private readonly ListBox diffList = new();
-    private readonly StackPanel diffPanel = new() { Spacing = 6, Width = 210, Margin = new Thickness(10, 0, 0, 0), IsVisible = false };
+    // A grid, not a stack, so the list gets only the height that is left and scrolls inside it.
+    private readonly Grid diffPanel = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 6, Width = 210, Margin = new Thickness(10, 0, 0, 0), IsVisible = false };
     private readonly TextBlock diffTitle = new() { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly Button compareButton = new() { Content = "Compare with BIN..." };
     private readonly Button stopCompare = new() { Content = "Stop comparing", IsVisible = false };
@@ -91,10 +92,12 @@ public sealed class HexView : OverlayPage
                 this.hex.Focus();
             }
         };
+        StackPanel diffButtons = new() { Orientation = Orientation.Horizontal, Spacing = 6, Children = { previousDiff, nextDiff } };
+        Grid.SetRow(diffButtons, 1);
+        Grid.SetRow(this.diffList, 2);
         this.diffPanel.Children.Add(this.diffTitle);
-        this.diffPanel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { previousDiff, nextDiff } });
+        this.diffPanel.Children.Add(diffButtons);
         this.diffPanel.Children.Add(this.diffList);
-        this.diffList.MaxHeight = 4000;
 
         Grid body = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*") };
         body.Children.Add(this.hex);
