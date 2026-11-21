@@ -55,7 +55,10 @@ public sealed partial class ValueEditorViewModel : ObservableObject
 
     public bool IsSingleValue => this.Rows == 1 && this.Columns == 1;
 
-    public bool HasColumnLabels => this.Columns > 1 || this.table.XLabels.Count > 0 && this.Rows > 1;
+    /// <summary>A single column of values with a trouble code on each row. The XDF gives its one column a placeholder label ("0.00"), which is not worth showing.</summary>
+    public bool IsTroubleCodeList => this.Columns == 1 && this.Rows > 1 && DtcCatalog.IsCode(this.RowLabel(0));
+
+    public bool HasColumnLabels => !this.IsTroubleCodeList && (this.Columns > 1 || this.table.XLabels.Count > 0 && this.Rows > 1);
 
     public bool HasRowLabels => this.Rows > 1;
 

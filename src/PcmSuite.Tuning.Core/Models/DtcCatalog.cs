@@ -29,6 +29,34 @@ public static partial class DtcCatalog
         return CodePattern().IsMatch(code) && Descriptions.TryGetValue(code, out string? text) ? text : null;
     }
 
+    /// <summary>True when the label starts with something shaped like a trouble code (P0101, U0107), described or not.</summary>
+    public static bool IsCode(string? label) =>
+        !string.IsNullOrWhiteSpace(label) && CodePattern().IsMatch(label.Trim().Split(' ', '	')[0]);
+
+    /// <summary>True when the label is a trouble code and the text is part of the code ("P04", "0420") or of its description ("catalyst").</summary>
+    public static bool Matches(string? label, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(label) || string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        string code = label.Trim().Split(' ', '	')[0].ToUpperInvariant();
+        if (!CodePattern().IsMatch(code))
+        {
+            return false;
+        }
+
+        string find = text.Trim();
+        return code.Contains(find, StringComparison.OrdinalIgnoreCase)
+            || (Descriptions.TryGetValue(code, out string? description) && description.Contains(find, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>True when any row or column label of the table is a trouble code that matches the text. Needs two characters, so a stray digit does not match every table.</summary>
+    public static bool TableMentions(TableDefinition table, string? text) =>
+        text != null && text.Trim().Length >= 2
+        && (table.YLabels.Any(l => Matches(l, text)) || table.XLabels.Any(l => Matches(l, text)));
+
     private static Dictionary<string, string> Build()
     {
         (string Code, string Text)[] rows =

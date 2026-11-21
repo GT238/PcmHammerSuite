@@ -1641,7 +1641,8 @@ public partial class TuneViewModel : ObservableObject
     {
         if (!node.IsCategory)
         {
-            return node.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+            // A name match, or (for the DTC tables) a trouble code or description among the rows: "P0420" or "catalyst" finds the tables that list it.
+            return (node.Name.Contains(text, StringComparison.OrdinalIgnoreCase) || (node.Table != null && DtcCatalog.TableMentions(node.Table, text)))
                    && (!changedOnly || node.HasChanges)
                    && (tag.Length == 0 || node.Tag == tag)
                 ? node

@@ -160,6 +160,13 @@ public partial class TuneView : UserControl
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Typing in the search box marks the matching trouble code rows of the open table.
+        if (e.PropertyName == nameof(TuneViewModel.SearchText) && this.attached?.Editor is { } open && open.HasRowLabels
+            && Enumerable.Range(0, open.Rows).Any(r => DtcCatalog.IsCode(open.RowLabel(r))))
+        {
+            this.BuildEditor();
+        }
+
         if (e.PropertyName is nameof(TuneViewModel.Editor) or nameof(TuneViewModel.Patch))
         {
             if (e.PropertyName == nameof(TuneViewModel.Editor))
@@ -629,6 +636,7 @@ public partial class TuneView : UserControl
             }
         }
 
+        TextBlock? firstMatch = null;
         if (editor.HasRowLabels)
         {
             for (int r = 0; r < editor.Rows; r++)
@@ -641,6 +649,12 @@ public partial class TuneView : UserControl
                     editor.SelectRow(headerRow);
                     this.GridHost.Focus();
                 };
+                if (DtcCatalog.Matches(editor.RowLabel(r), this.ViewModel?.SearchText))
+                {
+                    header.Foreground = new SolidColorBrush(Color.Parse("#E8A838"));
+                    firstMatch ??= header;
+                }
+
                 this.rowHeaders.Add(header);
                 grid.Children.Add(header);
 
@@ -737,6 +751,13 @@ public partial class TuneView : UserControl
         this.cells = boxes;
         Recolor(editor, boxes);
         this.GridHost.Content = grid;
+
+        if (firstMatch != null)
+        {
+            // Scroll the first matching trouble code into view once the grid has been laid out.
+            TextBlock target = firstMatch;
+            Dispatcher.UIThread.Post(() => target.BringIntoView(), DispatcherPriority.Loaded);
+        }
         this.UpdateFrozenHeaders();
         this.StartLiveIfOn();
     }
