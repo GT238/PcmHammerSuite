@@ -983,7 +983,7 @@ public partial class TuneView : UserControl
         {
             if (vm != null)
             {
-                vm.Status = "Open a BIN and its XDF first.";
+                vm.Status = "Open a BIN first.";
             }
 
             return;

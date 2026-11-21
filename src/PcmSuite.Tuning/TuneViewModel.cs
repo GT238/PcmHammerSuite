@@ -89,6 +89,9 @@ public partial class TuneViewModel : ObservableObject
 
     public byte[]? BinData { get; private set; }
 
+    /// <summary>True when the BIN is open without any XDF: no tables, but the hex view, checksums and segment swap work.</summary>
+    public bool IsBinOnly { get; private set; }
+
     /// <summary>The first and last byte of a table in the BIN (end is exclusive), for the hex view.</summary>
     public static (int Start, int End) Extent(TableDefinition t)
     {
@@ -1259,6 +1262,7 @@ public partial class TuneViewModel : ObservableObject
         this.Categories.Clear();
         this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
         this.BinData = null;
+        this.IsBinOnly = false;
         this.ReferenceData = null;
         this.ReferenceName = string.Empty;
         this.IsComparing = false;
@@ -1297,6 +1301,7 @@ public partial class TuneViewModel : ObservableObject
             this.Status = "No XDF found" + (ids.Length > 0 ? " for the part numbers in this BIN (" + ids + ")" : string.Empty) +
                           ". Looked for an XDF with one of those numbers in its file name, in the BIN's folder and in " +
                           ProjectInfo.XdfLibraryFolder + ". Use Open XDF, or put one there.";
+            await this.LoadBinOnlyAsync();
             return;
         }
 
@@ -1317,6 +1322,33 @@ public partial class TuneViewModel : ObservableObject
         this.XdfName = "None readable";
         this.Status = $"Found {candidates.Count} XDF(s) for this BIN ({string.Join(", ", candidates.Select(Path.GetFileName).Take(3))}) " +
                       "but none could be read; protected XDFs only open in TunerPro. Use Open XDF with an unprotected one.";
+        await this.LoadBinOnlyAsync();
+    }
+
+    /// <summary>
+    /// Open the BIN with no XDF, so there are no tables but the hex view, checksum check and segment swap still work.
+    /// Appends to the status message already set by the caller.
+    /// </summary>
+    private async Task LoadBinOnlyAsync()
+    {
+        if (this.BinPath == null)
+        {
+            return;
+        }
+
+        try
+        {
+            string path = this.BinPath;
+            byte[] data = await Task.Run(() => File.ReadAllBytes(path));
+            this.BinData = data;
+            this.IsBinOnly = true;
+            this.IsDirty = false;
+            this.Status += " Meanwhile the hex view, checksum check and segment swap work on this BIN.";
+        }
+        catch (Exception ex)
+        {
+            this.Status += " (The BIN could not be read: " + ex.Message + ")";
+        }
     }
 
     /// <summary>In a project, mark every difference from its untouched base BIN as soon as another BIN is open.</summary>
@@ -1407,7 +1439,8 @@ public partial class TuneViewModel : ObservableObject
             string bin = this.BinPath;
             string xdf = this.XdfPath;
 
-            byte[] data = await Task.Run(() => File.ReadAllBytes(bin));
+            // A BIN opened without an XDF may already have been changed (a segment swap): keep those edits when an XDF is added.
+            byte[] data = this.IsBinOnly && this.BinData != null && this.IsDirty ? this.BinData : await Task.Run(() => File.ReadAllBytes(bin));
 
             List<TableDefinition> tables;
             try
@@ -1448,17 +1481,23 @@ public partial class TuneViewModel : ObservableObject
 
             List<PatchDefinition> patches = await Task.Run(() => XdfParser.ParsePatches(xdf));
 
+            bool keepEdits = this.IsBinOnly && this.IsDirty;
             this.BinData = data;
+            this.IsBinOnly = false;
             this.ReadyToFlashPath = null;
-            this.swapHistory.Clear();
-            this.CanUndoSwap = false;
+            if (!keepEdits)
+            {
+                this.swapHistory.Clear();
+                this.CanUndoSwap = false;
+            }
+
             this.patchViewModels = new Dictionary<PatchDefinition, PatchViewModel>();
             this.Patch = null;
             this.ReferenceData = null;
             this.ReferenceName = string.Empty;
             this.IsComparing = false;
             this.ChangedOnly = false;
-            this.IsDirty = false;
+            this.IsDirty = keepEdits;
             this.SelectedNode = null;
             this.CloseAllTabs();
             this.Editor = null;
