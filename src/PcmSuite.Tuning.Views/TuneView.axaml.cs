@@ -976,6 +976,30 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(new LogMapView(new LogMapViewModel(editor), vm.LogFolderProvider));
     }
 
+    private async void OnCompareWorkbench(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm?.BinData == null)
+        {
+            if (vm != null)
+            {
+                vm.Status = "Open a BIN first.";
+            }
+
+            return;
+        }
+
+        await this.ShowOverlayAsync(new CompareView(vm));
+    }
+
+    private async void OnUndoCopyBack(object? sender, RoutedEventArgs e)
+    {
+        if (this.ViewModel != null)
+        {
+            await this.ViewModel.UndoCopyBackAsync();
+        }
+    }
+
     private async void OnHexView(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;

@@ -15,6 +15,7 @@
     <li><a target="_self" href="#meta">Pins, tags and notes</a></li>
     <li><a target="_self" href="#compare">Compare</a></li>
     <li><a target="_self" href="#hex">Hex view</a></li>
+    <li><a target="_self" href="#workbench">Compare workbench</a></li>
     <li><a target="_self" href="#saving">Saving, checksums and Send to Flash</a></li>
     <li><a target="_self" href="#records">Change log and notes export</a></li>
     <li><a target="_self" href="#ve-wizard">VE wizard</a></li>
@@ -169,6 +170,23 @@
     <li><b>Open table</b> shades the table that is open in the editor in blue and scrolls to it.</li>
     <li><b>Compare with BIN...</b> shades every byte that differs in red and lists each run of differing bytes, with the table it falls in. Click one to jump to it, or use Previous and Next. The other BIN must be the same size. If you are already comparing, that BIN is used.</li>
 </ul>
+
+<h3 id="workbench">Compare workbench</h3>
+<p>
+    <b>Compare workbench...</b> (menu, Tools) answers "what did this other tune change?" Choose another BIN of the same size, such as the stock file or a tune someone sent you.
+    The left list shows every XDF table whose values differ, with how many cells changed. Click a table to see each changed cell on the right, as the value in the open BIN and the value in the other one.
+</p>
+<ul>
+    <li>Below the list, the page says how many differing bytes are <b>outside every table</b> (program code, checksums, the OS id). They are not listed here; the hex view shows them.</li>
+    <li>Tick one or more tables and choose <b>Copy selected tables into the open BIN</b>. It asks first, then overwrites those tables in the open BIN, in memory. Nothing is saved until you use Save As, which corrects the checksums.</li>
+    <li>A flag keeps the other bits of its word, so copying one flag does not change its neighbours.</li>
+    <li><b>Undo last copy</b> puts back exactly what the newest copy replaced, newest first, and leaves your other edits alone. The Tools menu keeps an <b>Undo table copy</b> button while there is something to undo.</li>
+    <li>Every copy is written to the change log.</li>
+    <li>Without an XDF there are no tables to list. Use the hex view to see the differing bytes.</li>
+</ul>
+<p>
+    Copying a table brings its values only. If the other tune changed an axis that is a separate table, it is listed as its own table; copy it too if the two belong together.
+</p>
 
 <h3 id="saving">Saving, checksums and Send to Flash</h3>
 <p>

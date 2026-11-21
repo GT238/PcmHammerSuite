@@ -284,6 +284,47 @@ public partial class TuneViewModel : ObservableObject
                       (this.CanUndoSwap ? $" {this.swapHistory.Count} earlier swap(s) can still be undone." : string.Empty);
     }
 
+    // ---- Compare workbench: copy tables from another BIN ----
+
+    [ObservableProperty] private bool _canUndoCopyBack;
+
+    private readonly CopyBackHistory copyBackHistory = new();
+
+    /// <summary>The XDF's tables, for the compare workbench.</summary>
+    public IReadOnlyCollection<TableDefinition> AllTables => this.tablesByName.Values;
+
+    /// <summary>Copy whole tables from another BIN into the open BIN, in memory.</summary>
+    public async Task CopyTablesFromAsync(byte[] source, IReadOnlyList<TableDefinition> tables, string sourceName)
+    {
+        if (this.BinData == null || tables.Count == 0 || source.Length != this.BinData.Length)
+        {
+            return;
+        }
+
+        this.copyBackHistory.Apply(this.BinData, source, tables);
+        this.CanUndoCopyBack = true;
+        this.IsDirty = true;
+        this.AppendChangeLog($"Copied from {sourceName}: " + string.Join(", ", tables.Select(t => t.Name)));
+        await this.AfterBytesChangedAsync();
+        this.Status = $"Copied {tables.Count} table(s) from {sourceName} into the open BIN (not saved yet). " +
+                      "Use Save As to write it with corrected checksums, or undo the copy.";
+    }
+
+    public async Task UndoCopyBackAsync()
+    {
+        if (this.BinData == null || this.copyBackHistory.Undo(this.BinData) is not { } description)
+        {
+            return;
+        }
+
+        this.CanUndoCopyBack = this.copyBackHistory.Count > 0;
+        this.IsDirty = true;
+        this.AppendChangeLog("Copy undone: " + description);
+        await this.AfterBytesChangedAsync();
+        this.Status = $"Copy undone: {description} (not saved yet)." +
+                      (this.CanUndoCopyBack ? $" {this.copyBackHistory.Count} earlier copy(ies) can still be undone." : string.Empty);
+    }
+
     /// <summary>The BIN's bytes changed under the open page: show them again.</summary>
     private async Task AfterBytesChangedAsync()
     {
@@ -1282,6 +1323,8 @@ public partial class TuneViewModel : ObservableObject
         this.IsComparing = false;
         this.ChangedOnly = false;
         this.swapHistory.Clear();
+        this.copyBackHistory.Clear();
+        this.CanUndoCopyBack = false;
         this.CanUndoSwap = false;
         this.IsDirty = false;
         this.ReadyToFlashPath = null;
@@ -1526,6 +1569,8 @@ public partial class TuneViewModel : ObservableObject
             if (!keepEdits)
             {
                 this.swapHistory.Clear();
+                this.copyBackHistory.Clear();
+                this.CanUndoCopyBack = false;
                 this.CanUndoSwap = false;
             }
 

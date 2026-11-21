@@ -81,6 +81,10 @@
                                 ToolTip.Tip="Suggest corrections for the open table from a Logger log file"/>
                         <Button Content="Log map..." Click="OnLogMap" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Show where a logged drive went on the open table: samples per cell, or the average, lowest or highest of a channel"/>
+                        <Button Content="Compare workbench..." Click="OnCompareWorkbench" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="List every table that differs from another BIN, see the changed cells, and copy chosen tables into the open BIN"/>
+                        <Button Content="Undo table copy" Click="OnUndoCopyBack" HorizontalAlignment="Stretch"
+                                IsVisible="{Binding CanUndoCopyBack}"/>
                         <Button Content="Hex view..." Click="OnHexView" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Browse the BIN byte by byte, search it, and list every difference from another BIN"/>
 

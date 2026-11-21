@@ -89,32 +89,37 @@ namespace PcmSuite.Tuning.Core.Models
 
         public bool YLabelsAreReal { get; set; }
 
-        // ── Read raw value from bin ───────────────────────────────────
-        public double GetRawValue(byte[] bin, int row, int col)
+        /// <summary>The byte offset in the BIN of the cell at this row and column (the same rule reading and writing use).</summary>
+        public int CellOffset(int row, int col)
         {
-            int offsetBytes;
             int sz = SizeInBytes;
 
             // Per-row address override (e.g. Calibration Segment ID stores each
             // row at a completely different non-contiguous address in the BIN).
             if (RowAddressOverrides != null && RowAddressOverrides.TryGetValue(row, out uint rowAddr))
             {
-                offsetBytes = (int)rowAddr + col * sz;
+                return (int)rowAddr + col * sz;
             }
-            else if (MinorStrideBits > 0)
+
+            if (MinorStrideBits > 0)
             {
                 // Column-major storage with minor-stride alignment.
                 int colStrideBytes = (int)Math.Ceiling((double)(Rows * ElementBits) / MinorStrideBits)
                                      * MinorStrideBits / 8;
-                offsetBytes = (int)Address + col * colStrideBytes + row * sz;
+                return (int)Address + col * colStrideBytes + row * sz;
             }
-            else
-            {
-                // Row-major storage (standard).
-                int colStride = ElementBits;
-                int rowStride = MajorStrideBits > 0 ? MajorStrideBits : Columns * colStride;
-                offsetBytes = (int)Address + (row * rowStride + col * colStride) / 8;
-            }
+
+            // Row-major storage (standard).
+            int colStride = ElementBits;
+            int rowStride = MajorStrideBits > 0 ? MajorStrideBits : Columns * colStride;
+            return (int)Address + (row * rowStride + col * colStride) / 8;
+        }
+
+        // ── Read raw value from bin ───────────────────────────────────
+        public double GetRawValue(byte[] bin, int row, int col)
+        {
+            int sz = SizeInBytes;
+            int offsetBytes = CellOffset(row, col);
 
             if (offsetBytes < 0 || offsetBytes + sz > bin.Length) return 0;
 
@@ -147,25 +152,8 @@ namespace PcmSuite.Tuning.Core.Models
         // ── Write raw value to bin ────────────────────────────────────
         public void SetRawValue(byte[] bin, int row, int col, double rawValue)
         {
-            int offsetBytes;
             int sz = SizeInBytes;
-
-            if (RowAddressOverrides != null && RowAddressOverrides.TryGetValue(row, out uint rowAddr))
-            {
-                offsetBytes = (int)rowAddr + col * sz;
-            }
-            else if (MinorStrideBits > 0)
-            {
-                int colStrideBytes = (int)Math.Ceiling((double)(Rows * ElementBits) / MinorStrideBits)
-                                     * MinorStrideBits / 8;
-                offsetBytes = (int)Address + col * colStrideBytes + row * sz;
-            }
-            else
-            {
-                int colStride = ElementBits;
-                int rowStride = MajorStrideBits > 0 ? MajorStrideBits : Columns * colStride;
-                offsetBytes = (int)Address + (row * rowStride + col * colStride) / 8;
-            }
+            int offsetBytes = CellOffset(row, col);
 
             if (offsetBytes < 0 || offsetBytes + sz > bin.Length) return;
 
