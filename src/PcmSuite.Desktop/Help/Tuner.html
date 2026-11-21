@@ -80,7 +80,7 @@
     <li>On a narrow window (or a phone) the three areas become pages with buttons at the bottom.</li>
 </ul>
 <p>
-    The menu has sections for <b>Project</b>, <b>Files</b> (Open XDF, Auto-detect, recent BINs), <b>Tools</b> (Swap segments, Logging profiles, VE wizard),
+    The menu has sections for <b>Project</b>, <b>Files</b> (Open XDF, Auto-detect, recent BINs), <b>Tools</b> (Swap segments, Logging profiles, VE wizard, Log map, Compare workbench, Hex view),
     <b>Records</b> (Open change log, Export notes) and <b>Checks</b> (Check checksums, Compare with BIN).
 </p>
 
@@ -156,6 +156,9 @@
     Inside a project, every BIN of the project is compared with the project's base automatically. A BIN you open with "Just open it" from outside the project is not.
     <b>Stop comparing</b> turns it off.
 </p>
+<p>
+    To see <i>what</i> changed as a list, and to bring tables from another tune into yours, use the <a target="_self" href="#workbench">Compare workbench</a>. To see the changed bytes themselves, use the <a target="_self" href="#hex">Hex view</a>.
+</p>
 
 <h3 id="hex">Hex view</h3>
 <p>
@@ -168,7 +171,7 @@
     <li><b>Go</b> jumps to an address in hex (<code>8360</code>, <code>0x8360</code> or <code>$8360</code>).</li>
     <li><b>Find</b> looks for hex bytes (<code>FF 8A 00</code>) or text in quotes (<code>"12212156"</code>) and wraps round the ends. Enter finds the next one.</li>
     <li><b>Open table</b> shades the table that is open in the editor in blue and scrolls to it.</li>
-    <li><b>Compare with BIN...</b> shades every byte that differs in red and lists each run of differing bytes, with the table it falls in. Click one to jump to it, or use Previous and Next. The other BIN must be the same size. If you are already comparing, that BIN is used.</li>
+    <li><b>Compare with BIN...</b> (inside the hex view) shades every byte that differs in red and lists each run of differing bytes, with the table it falls in. Click one to jump to it, or use Previous and Next. The other BIN must be the same size. If you are already comparing, that BIN is used.</li>
 </ul>
 
 <h3 id="workbench">Compare workbench</h3>
