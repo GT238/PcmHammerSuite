@@ -14,6 +14,7 @@
     <li><a target="_self" href="#tabs">Several tables open</a></li>
     <li><a target="_self" href="#meta">Pins, tags and notes</a></li>
     <li><a target="_self" href="#compare">Compare</a></li>
+    <li><a target="_self" href="#hex">Hex view</a></li>
     <li><a target="_self" href="#saving">Saving, checksums and Send to Flash</a></li>
     <li><a target="_self" href="#records">Change log and notes export</a></li>
     <li><a target="_self" href="#ve-wizard">VE wizard</a></li>
@@ -145,6 +146,19 @@
     Inside a project, every BIN of the project is compared with the project's base automatically. A BIN you open with "Just open it" from outside the project is not.
     <b>Stop comparing</b> turns it off.
 </p>
+
+<h3 id="hex">Hex view</h3>
+<p>
+    <b>Hex view...</b> (menu, Tools) shows the open BIN byte by byte: address, 16 bytes per row, and the text each byte stands for.
+    It shows your unsaved edits too. Click a byte (or use the arrow keys, Page Up/Down, Home and End) to see its value as one, two and four bytes
+    (the GM byte order) and which XDF table covers it, which is the quickest way to check whether a table address is right.
+</p>
+<ul>
+    <li><b>Go</b> jumps to an address in hex (<code>8360</code>, <code>0x8360</code> or <code>$8360</code>).</li>
+    <li><b>Find</b> looks for hex bytes (<code>FF 8A 00</code>) or text in quotes (<code>"12212156"</code>) and wraps round the ends. Enter finds the next one.</li>
+    <li><b>Open table</b> shades the table that is open in the editor in blue and scrolls to it.</li>
+    <li><b>Compare with BIN...</b> shades every byte that differs in red and lists each run of differing bytes, with the table it falls in. Click one to jump to it, or use Previous and Next. The other BIN must be the same size. If you are already comparing, that BIN is used.</li>
+</ul>
 
 <h3 id="saving">Saving, checksums and Send to Flash</h3>
 <p>

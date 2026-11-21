@@ -82,6 +82,8 @@
                                 ToolTip.Tip="Ready-made lists of what to log for VE, fuel trim, spark and MAF tuning"/>
                         <Button Content="VE wizard..." Click="OnVeWizard" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Suggest corrections for the open table from a Logger log file"/>
+                        <Button Content="Hex view..." Click="OnHexView" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Browse the BIN byte by byte, search it, and list every difference from another BIN"/>
 
                         <TextBlock Text="Records" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"/>
                         <Button Content="Open change log" Click="OnOpenChangeLog" HorizontalAlignment="Stretch"

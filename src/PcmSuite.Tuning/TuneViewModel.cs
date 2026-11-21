@@ -89,6 +89,34 @@ public partial class TuneViewModel : ObservableObject
 
     public byte[]? BinData { get; private set; }
 
+    /// <summary>The first and last byte of a table in the BIN (end is exclusive), for the hex view.</summary>
+    public static (int Start, int End) Extent(TableDefinition t)
+    {
+        int size = Math.Max(1, t.SizeInBytes);
+        int rowStep = t.MajorStrideBits > 0 ? t.MajorStrideBits / 8 : t.Columns * size;
+        int colStep = t.MinorStrideBits > 0 ? t.MinorStrideBits / 8 : size;
+        int start = (int)t.Address;
+        return (start, start + Math.Max(0, t.Rows - 1) * rowStep + Math.Max(0, t.Columns - 1) * colStep + size);
+    }
+
+    /// <summary>The name of the smallest XDF table that covers this offset, or null.</summary>
+    public string? TableNameAt(int offset)
+    {
+        string? best = null;
+        int bestLength = int.MaxValue;
+        foreach (TableDefinition t in this.tablesByName.Values)
+        {
+            (int start, int end) = Extent(t);
+            if (offset >= start && offset < end && end - start < bestLength)
+            {
+                best = t.Name;
+                bestLength = end - start;
+            }
+        }
+
+        return best;
+    }
+
     partial void OnSearchTextChanged(string value) => this.ApplyFilter(value);
 
     partial void OnChangedOnlyChanged(bool value) => this.ApplyFilter(this.SearchText);

@@ -915,6 +915,22 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(new SegmentSwapView(vm, model));
     }
 
+    private async void OnHexView(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm?.BinData == null)
+        {
+            if (vm != null)
+            {
+                vm.Status = "Open a BIN and its XDF first.";
+            }
+
+            return;
+        }
+
+        await this.ShowOverlayAsync(new HexView(vm));
+    }
+
     private async void OnVeWizard(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;
