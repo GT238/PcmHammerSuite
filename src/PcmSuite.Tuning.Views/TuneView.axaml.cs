@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using PcmSuite.Tuning.Core.Models;
 
 namespace PcmSuite.Tune;
 
@@ -642,6 +643,22 @@ public partial class TuneView : UserControl
                 };
                 this.rowHeaders.Add(header);
                 grid.Children.Add(header);
+
+                // A trouble code row gets its meaning beside the cell (generic codes only; see DtcCatalog).
+                if (DtcCatalog.Describe(editor.RowLabel(r)) is { } meaning)
+                {
+                    TextBlock note = new()
+                    {
+                        Text = meaning,
+                        Opacity = 0.7,
+                        FontSize = 12,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(10, 0, 0, 0),
+                    };
+                    Grid.SetRow(note, rowOffset + r);
+                    Grid.SetColumn(note, colOffset + editor.Columns);
+                    grid.Children.Add(note);
+                }
             }
         }
 
