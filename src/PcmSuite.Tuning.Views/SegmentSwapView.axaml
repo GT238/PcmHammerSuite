@@ -14,6 +14,8 @@
             <TextBlock TextWrapping="Wrap"><Run Text="Open BIN:"/> <Run Text="{Binding TargetName}" FontWeight="SemiBold"/></TextBlock>
             <TextBlock TextWrapping="Wrap"><Run Text="Donor BIN:"/> <Run Text="{Binding DonorName}" FontWeight="SemiBold"/></TextBlock>
             <TextBlock Text="{Binding OsLine}" Opacity="0.75" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding OsVerdict}" TextWrapping="Wrap" FontWeight="SemiBold"
+                       Foreground="{Binding OsMatch, Converter={x:Static local:OsMatchBrushConverter.Instance}}"/>
         </StackPanel>
 
         <WrapPanel Grid.Row="1" Margin="0,10,0,10">

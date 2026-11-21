@@ -21,6 +21,8 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
     [ObservableProperty] private string _preview = string.Empty;
     [ObservableProperty] private bool _hasSegments;
     [ObservableProperty] private string _osLine = string.Empty;
+    [ObservableProperty] private string _osVerdict = string.Empty;
+    [ObservableProperty] private OsMatch _osMatch = OsMatch.Unknown;
 
     public SegmentSwapViewModel(string targetName, byte[] target)
     {
@@ -37,6 +39,12 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
 
     public byte[]? Donor => this.donor;
 
+    private string? targetOs;
+    private string? donorOs;
+
+    /// <summary>What to ask before copying the ticked segments, or null when nothing needs asking.</summary>
+    public SwapReview? Review() => SegmentSwapGuard.Review(this.OsMatch, this.targetOs, this.donorOs, this.Selected);
+
     public async Task LoadDonorAsync(string path)
     {
         try
@@ -46,6 +54,9 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
             this.Segments.Clear();
             this.HasSegments = false;
             this.Preview = string.Empty;
+            this.OsLine = string.Empty;
+            this.OsVerdict = string.Empty;
+            this.OsMatch = OsMatch.Unknown;
 
             if (data.Length != this.target.Length)
             {
@@ -71,7 +82,11 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
 
             this.donor = data;
             this.DonorName = Path.GetFileName(path);
-            this.OsLine = "Open BIN OS: " + OsList(this.target) + "     Donor OS: " + OsList(data);
+            this.targetOs = SegmentSwapGuard.OperatingSystemId(this.target);
+            this.donorOs = SegmentSwapGuard.OperatingSystemId(data);
+            this.OsMatch = SegmentSwapGuard.Compare(this.targetOs, this.donorOs);
+            this.OsLine = "Open BIN OS: " + (this.targetOs ?? "not found") + "     Donor OS: " + (this.donorOs ?? "not found");
+            this.OsVerdict = SegmentSwapGuard.Verdict(this.OsMatch, this.targetOs, this.donorOs);
 
             foreach (SegmentInfo t in mine)
             {
@@ -112,7 +127,9 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
 
             this.HasSegments = true;
             int diffCount = this.Segments.Count(s => s.IsDifferent);
-            this.Status = $"{diffCount} segment(s) differ. Tick the ones to copy from the donor into the open BIN.";
+            this.Status = this.OsMatch == OsMatch.Different
+                ? $"{diffCount} segment(s) differ, but the operating systems do not match. Copying will ask you to confirm."
+                : $"{diffCount} segment(s) differ. Tick the ones to copy from the donor into the open BIN.";
             this.UpdatePreview();
         }
         catch (Exception ex)
@@ -161,12 +178,6 @@ public sealed partial class SegmentSwapViewModel : ObservableObject
 
         this.Preview = $"{picked.Count} segment(s) selected, {changed:N0} bytes will change. " +
                        "They are copied into the open BIN as an edit; use Save As to write a file with corrected checksums.";
-    }
-
-    private static string OsList(byte[] bin)
-    {
-        List<string> ids = OsIdDetector.ScanForOsIds(bin).Take(4).ToList();
-        return ids.Count == 0 ? "not found" : string.Join(", ", ids);
     }
 
     private sealed class SilentLogger : ILogger

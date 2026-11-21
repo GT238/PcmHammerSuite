@@ -62,14 +62,20 @@ public partial class SegmentSwapView : OverlayPage
             return;
         }
 
-        List<string> risky = picked.Where(s => s.IsRisky).Select(s => s.Name).ToList();
-        if (risky.Count > 0 && this.Confirm != null && !await this.Confirm(
-                "Risky segment selected",
-                "You ticked: " + string.Join(", ", risky) + ".\n\nThis changes the vehicle's identity and security data "
-                + "(VIN, system settings). Only continue if the donor is the matching file for this PCM.",
-                "Copy anyway"))
+        // Different (or unidentifiable) operating systems and identity segments are never copied without an explicit yes.
+        SwapReview? review = this.model.Review();
+        if (review != null)
         {
-            return;
+            if (this.Confirm == null)
+            {
+                this.model.Status = "Not copied: " + review.Title + ". " + review.Message;
+                return;
+            }
+
+            if (!await this.Confirm(review.Title, review.Message, review.Danger ? "Copy despite the mismatch" : "Copy anyway"))
+            {
+                return;
+            }
         }
 
         await this.tune.ApplySegmentsAsync(this.model.Donor, picked, this.model.DonorName);

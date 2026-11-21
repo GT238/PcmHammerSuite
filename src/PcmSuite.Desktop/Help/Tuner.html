@@ -204,6 +204,9 @@
     <li><b>Patches</b> from the XDF (such as a speed limiter or a code that disables something) show a page with <b>Apply patch</b> and <b>Take patch back</b>.</li>
     <li><b>Swap segments...</b> (menu, Tools) copies whole calibration segments from another BIN into the open one. Some segments are marked risky because they can change the
         vehicle's identity or leave the BIN inconsistent. <b>Undo segment swap</b> puts the overwritten bytes back.</li>
+    <li>Before anything is copied, the Tuner compares the <b>operating system</b> of the two BINs (its part number, not the calibration's). Same OS is shown in green.
+        If they <b>differ</b> (red), or one cannot be identified (amber), copying asks for an explicit confirmation: a calibration written for one operating system can stop
+        the PCM from starting in another. The system segment, which holds the VIN and security data, always asks too.</li>
 </ul>
 
 <h3 id="drop">Drag and drop, command line</h3>
