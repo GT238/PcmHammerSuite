@@ -1,0 +1,32 @@
+name: Build and test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with the PcmHammer submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore
+        run: dotnet restore PcmSuite.sln
+
+      - name: Build
+        run: dotnet build PcmSuite.sln --configuration Release --no-restore
+
+      # Tests that need real BIN or XDF files skip themselves when those (uncommitted) files are absent.
+      - name: Test
+        run: dotnet test PcmSuite.sln --configuration Release --no-build --verbosity normal
