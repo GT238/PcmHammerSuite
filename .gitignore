@@ -2,3 +2,8 @@ bin/
 obj/
 .vs/
 *.user
+
+# Real calibration data and local files: never committed
+/Bin/
+/XDF/
+/0001-*.patch

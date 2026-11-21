@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests for the Tuner's core logic: checksums, XDF parsing, table scaling, XDF matching, help search.
+       Tests that need real BIN / XDF files look in the repository's Bin and XDF folders (never committed) and are
+       reported as skipped when those files are not there. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PcmSuite.Tuning\PcmSuite.Tuning.csproj" />
+  </ItemGroup>
+</Project>
