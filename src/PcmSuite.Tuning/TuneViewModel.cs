@@ -216,8 +216,8 @@ public partial class TuneViewModel : ObservableObject
 
     [ObservableProperty] private bool _canUndoSwap;
 
-    // What the swap overwrote: only those address ranges are put back by Undo, so edits made elsewhere survive.
-    private List<(uint Start, byte[] Bytes)>? swapBackup;
+    // What each swap overwrote: Undo puts back one swap at a time, newest first.
+    private readonly SwapHistory swapHistory = new();
 
     /// <summary>Copy the chosen segments from a donor BIN into the open BIN, in memory.</summary>
     public async Task ApplySegmentsAsync(byte[] donor, IReadOnlyList<PcmSuite.Tuning.Core.Models.SegmentInfo> segments, string donorName)
@@ -227,15 +227,7 @@ public partial class TuneViewModel : ObservableObject
             return;
         }
 
-        this.swapBackup = new List<(uint, byte[])>();
-        foreach (PcmSuite.Tuning.Core.Models.SegmentInfo s in segments)
-        {
-            byte[] before = new byte[s.ByteCount];
-            Array.Copy(this.BinData, s.StartAddress, before, 0, s.ByteCount);
-            this.swapBackup.Add((s.StartAddress, before));
-            Array.Copy(donor, s.StartAddress, this.BinData, s.StartAddress, s.ByteCount);
-        }
-
+        this.swapHistory.Apply(this.BinData, donor, segments);
         this.CanUndoSwap = true;
         this.IsDirty = true;
         this.AppendChangeLog($"Segment swap from {donorName}: " + string.Join(", ", segments.Select(s => s.Name)));
@@ -246,24 +238,19 @@ public partial class TuneViewModel : ObservableObject
 
     public async Task UndoSwapAsync()
     {
-        if (this.BinData == null || this.swapBackup == null)
+        if (this.BinData == null || this.swapHistory.Undo(this.BinData) is not { } description)
         {
             return;
         }
 
-        foreach ((uint start, byte[] bytes) in this.swapBackup)
-        {
-            Array.Copy(bytes, 0, this.BinData, start, bytes.Length);
-        }
-
-        this.swapBackup = null;
-        this.CanUndoSwap = false;
+        this.CanUndoSwap = this.swapHistory.Count > 0;
 
         // The BIN differs from whatever was saved last, so it counts as modified (and is no longer "ready to flash").
         this.IsDirty = true;
-        this.AppendChangeLog("Segment swap undone");
+        this.AppendChangeLog("Segment swap undone: " + description);
         await this.AfterBytesChangedAsync();
-        this.Status = "Segment swap undone (not saved yet).";
+        this.Status = $"Segment swap undone: {description} (not saved yet)." +
+                      (this.CanUndoSwap ? $" {this.swapHistory.Count} earlier swap(s) can still be undone." : string.Empty);
     }
 
     /// <summary>The BIN's bytes changed under the open page: show them again.</summary>
@@ -1248,7 +1235,7 @@ public partial class TuneViewModel : ObservableObject
         this.ReferenceName = string.Empty;
         this.IsComparing = false;
         this.ChangedOnly = false;
-        this.swapBackup = null;
+        this.swapHistory.Clear();
         this.CanUndoSwap = false;
         this.IsDirty = false;
         this.ReadyToFlashPath = null;
@@ -1435,7 +1422,7 @@ public partial class TuneViewModel : ObservableObject
 
             this.BinData = data;
             this.ReadyToFlashPath = null;
-            this.swapBackup = null;
+            this.swapHistory.Clear();
             this.CanUndoSwap = false;
             this.patchViewModels = new Dictionary<PatchDefinition, PatchViewModel>();
             this.Patch = null;
