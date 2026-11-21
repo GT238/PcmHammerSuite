@@ -9,6 +9,28 @@ namespace PcmSuite.Tuning.Core.Models
     /// </summary>
     public static class AppPaths
     {
+        /// <summary>
+        /// True when the path is somewhere inside the folder. A folder name that merely starts with the same letters does not count:
+        /// "Car_2.bin" is not inside "Car" (a plain StartsWith says it is).
+        /// </summary>
+        public static bool IsInside(string? path, string? folder)
+        {
+            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(folder))
+            {
+                return false;
+            }
+
+            try
+            {
+                string root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         /// <summary>Settings and pin/tag data (PCMSUITE_DATA overrides).</summary>
         public static string DataFolder =>
             Environment.GetEnvironmentVariable("PCMSUITE_DATA") is { Length: > 0 } custom

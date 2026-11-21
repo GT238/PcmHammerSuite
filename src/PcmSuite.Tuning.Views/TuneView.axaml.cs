@@ -1081,7 +1081,7 @@ public partial class TuneView : UserControl
 
         PcmSuite.Tuning.Core.Models.ProjectInfo? current = vm.CurrentProject;
         PcmSuite.Tuning.Core.Models.ProjectInfo? owner = PcmSuite.Tuning.Core.Models.ProjectInfo.FindContaining(path);
-        bool inCurrent = current != null && path.StartsWith(current.ProjectFolder, StringComparison.OrdinalIgnoreCase);
+        bool inCurrent = current != null && PcmSuite.Tuning.Core.Models.AppPaths.IsInside(path, current.ProjectFolder);
         string name = Path.GetFileName(path);
 
         if (owner != null && !inCurrent)

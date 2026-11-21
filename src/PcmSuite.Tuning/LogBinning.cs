@@ -176,12 +176,15 @@ public static class LogBinning
         return stats;
     }
 
-    /// <summary>Index of the first column whose heading contains any of the words (tried in order), or -1.</summary>
+    /// <summary>
+    /// Index of the column that best fits the words, or -1. The words are in order of preference: the first word that any heading contains
+    /// decides, and the first column containing it wins. ("manifold", "map", "load" finds a manifold pressure column even when a load column comes first.)
+    /// </summary>
     public static int FindColumn(LoggedData data, params string[] keywords)
     {
-        for (int i = 0; i < data.Columns.Count; i++)
+        foreach (string keyword in keywords)
         {
-            foreach (string keyword in keywords)
+            for (int i = 0; i < data.Columns.Count; i++)
             {
                 if (data.Columns[i].Heading.Contains(keyword, StringComparison.OrdinalIgnoreCase))
                 {

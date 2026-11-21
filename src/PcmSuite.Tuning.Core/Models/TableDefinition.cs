@@ -37,8 +37,36 @@ namespace PcmSuite.Tuning.Core.Models
         public int MajorStrideBits { get; set; } = 0;  // between rows
 
         // ── Flag mask (XDFFLAG only) ─────────────────────────────────
-        // Non-zero when this entry is a bit flag: value = (byte & Mask) != 0 ? 1 : 0
-        public byte Mask { get; set; } = 0;
+        // Non-zero when this entry is a bit flag: value = (element & Mask) != 0 ? 1 : 0, where the element is
+        // ElementBits wide and read in the table's byte order, so a mask can be wider than 8 bits (0x0100 on a 16-bit word).
+        public uint Mask { get; set; } = 0;
+
+        /// <summary>The unsigned value of the element of <see cref="SizeInBytes"/> bytes at this offset, in the table's byte order. Zero if it is outside the image.</summary>
+        public uint ReadElement(byte[] bin, int offset)
+        {
+            int sz = SizeInBytes;
+            if (offset < 0 || offset + sz > bin.Length) return 0;
+            uint value = 0;
+            for (int i = 0; i < sz; i++)
+            {
+                int b = IsBigEndian ? i : sz - 1 - i;
+                value = (value << 8) | bin[offset + b];
+            }
+            return value;
+        }
+
+        /// <summary>Write an unsigned element of <see cref="SizeInBytes"/> bytes at this offset, in the table's byte order.</summary>
+        public void WriteElement(byte[] bin, int offset, uint value)
+        {
+            int sz = SizeInBytes;
+            if (offset < 0 || offset + sz > bin.Length) return;
+            for (int i = sz - 1; i >= 0; i--)
+            {
+                int b = IsBigEndian ? i : sz - 1 - i;
+                bin[offset + b] = (byte)value;
+                value >>= 8;
+            }
+        }
 
         // ── Per-row address overrides ─────────────────────────────────
         // Some XDF tables (e.g. Calibration Segment ID) store each row at a
@@ -90,10 +118,12 @@ namespace PcmSuite.Tuning.Core.Models
 
             if (offsetBytes < 0 || offsetBytes + sz > bin.Length) return 0;
 
+            // A flag is one bit (or a few) of the element, whatever the element's width.
+            if (Mask != 0) return (ReadElement(bin, offsetBytes) & Mask) != 0 ? 1.0 : 0.0;
+
             if (sz == 1)
             {
                 byte b = bin[offsetBytes];
-                if (Mask != 0) return (b & Mask) != 0 ? 1.0 : 0.0;
                 return IsSigned ? (sbyte)b : b;
             }
             else if (sz == 2)

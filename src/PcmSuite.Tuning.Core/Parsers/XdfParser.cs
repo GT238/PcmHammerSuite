@@ -325,7 +325,12 @@ namespace PcmSuite.Tuning.Core.Parsers
                     string? maskStr = xFlag.Elements().FirstOrDefault(x => x.Name.LocalName == "mask")?.Value;
                     if (maskStr != null)
                     {
-                        try { table.Mask = Convert.ToByte(maskStr.Replace("0x", "").Replace("0X", ""), 16); } catch { }
+                        // The mask is hex and can be wider than a byte (0x0100 on a 16-bit element); one that does not parse leaves the entry a plain value.
+                        if (uint.TryParse(maskStr.Trim().Replace("0x", "").Replace("0X", ""), System.Globalization.NumberStyles.AllowHexSpecifier,
+                                System.Globalization.CultureInfo.InvariantCulture, out uint mask))
+                        {
+                            table.Mask = mask;
+                        }
                     }
                     tables.Add(table);
                 }

@@ -253,26 +253,30 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     public bool GetFlag() => this.table.GetRawValue(this.bin, 0, 0) != 0;
 
     /// <summary>
-    /// Sets or clears the flag's bit only. (The table's own raw writer replaces the whole byte,
-    /// which would clobber the other flags stored in it.)
+    /// Sets or clears the flag's bits only, in the element's full width and byte order. (The table's own raw writer replaces the
+    /// whole element, which would clobber the other flags stored in it.)
     /// </summary>
     public void SetFlag(bool on)
     {
         int offset = (int)this.table.Address;
-        if (offset < 0 || offset >= this.bin.Length)
+        if (offset < 0 || offset + this.table.SizeInBytes > this.bin.Length)
         {
             return;
         }
 
-        byte before = this.bin[offset];
-        byte after = on ? (byte)(before | this.table.Mask) : (byte)(before & ~this.table.Mask);
+        uint before = this.table.ReadElement(this.bin, offset);
+        uint after = on ? before | this.table.Mask : before & ~this.table.Mask;
         if (after == before)
         {
             return;
         }
 
-        this.bin[offset] = after;
-        this.Push(new EditStep("Flag " + this.Name, () => this.bin[offset] = before, () => this.bin[offset] = after, Array.Empty<CellChange>()));
+        this.table.WriteElement(this.bin, offset, after);
+        this.Push(new EditStep(
+            "Flag " + this.Name,
+            () => this.table.WriteElement(this.bin, offset, before),
+            () => this.table.WriteElement(this.bin, offset, after),
+            Array.Empty<CellChange>()));
         this.Changed();
         this.Edited?.Invoke(new EditRecord("Edit", (on ? "Set flag " : "Clear flag ") + this.Name, Array.Empty<CellChange>()));
     }

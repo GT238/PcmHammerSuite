@@ -656,13 +656,25 @@ public partial class TuneViewModel : ObservableObject
         try
         {
             this.Status = "Correcting checksums...";
-            byte[] data = this.BinData;
+
+            // Work on a copy: the checksum correction and the file write run off the UI thread, and the live BIN may be edited meanwhile.
+            byte[] live = this.BinData;
+            byte[] original = (byte[])live.Clone();
+            byte[] data = (byte[])live.Clone();
             ChecksumReport report = await Task.Run(() =>
             {
                 ChecksumReport result = ChecksumService.CorrectAndValidate(data);
                 File.WriteAllBytes(path, data);
                 return result;
             });
+
+            // Nothing changed while saving: the open BIN takes on the corrected checksums, as it always has.
+            // Otherwise the file is saved without the late edit, and the BIN stays unsaved.
+            bool editedMeanwhile = !live.AsSpan().SequenceEqual(original);
+            if (!editedMeanwhile)
+            {
+                Array.Copy(data, live, data.Length);
+            }
 
             if (this.BinPath != null)
             {
@@ -673,14 +685,16 @@ public partial class TuneViewModel : ObservableObject
 
             this.BinPath = path;
             this.BinName = Path.GetFileName(path);
-            this.IsDirty = false;
+            this.IsDirty = editedMeanwhile;
 
-            // Only a file that PCMHammer's validator accepts is offered for flashing.
-            this.ReadyToFlashPath = report.Valid ? path : null;
+            // Only a file that PCMHammer's validator accepts is offered for flashing (and not one that lacks a late edit).
+            this.ReadyToFlashPath = report.Valid && !editedMeanwhile ? path : null;
             this.Details = report.Details;
-            this.Status = report.Valid
-                ? $"Saved as {this.BinName}. {report.Summary}"
-                : $"Saved as {this.BinName}, but {report.Summary} Do not flash it until that is fixed.";
+            this.Status = editedMeanwhile
+                ? $"Saved as {this.BinName}, but you changed the BIN while it was saving, so that edit is not in the file. Save again."
+                : report.Valid
+                    ? $"Saved as {this.BinName}. {report.Summary}"
+                    : $"Saved as {this.BinName}, but {report.Summary} Do not flash it until that is fixed.";
             this.ShowEditor(this.SelectedNode, true);
         }
         catch (Exception ex)
@@ -1010,7 +1024,7 @@ public partial class TuneViewModel : ObservableObject
 
         if (this.CurrentProject is not { } project
             || !copyIntoProject
-            || path.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase))
+            || AppPaths.IsInside(path, project.ProjectFolder))
         {
             await this.OpenBinAsync(path);
             return;
@@ -1146,14 +1160,14 @@ public partial class TuneViewModel : ObservableObject
 
         // LS-Studio's projects now live under the PcmSuite Projects folder, so its old paths are translated.
         string Map(string path) =>
-            path.StartsWith(ProjectInfo.LegacyProjectsRoot, StringComparison.OrdinalIgnoreCase)
+            AppPaths.IsInside(path, ProjectInfo.LegacyProjectsRoot)
                 ? ProjectInfo.DefaultProjectsRoot + path.Substring(ProjectInfo.LegacyProjectsRoot.Length)
                 : path;
 
         int moved = this.projectNotes.AddNotesIfMissing(
             this.store.AllNotes().Concat(TuneNotesStore.ReadLsStudioNotes())
                 .Select(n => (Bin: Map(n.Bin), n.Table, n.Text))
-                .Where(n => n.Bin.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase)));
+                .Where(n => AppPaths.IsInside(n.Bin, project.ProjectFolder)));
         try
         {
             project.NotesImported = true;
@@ -1229,7 +1243,7 @@ public partial class TuneViewModel : ObservableObject
 
         try
         {
-            if (binPath != null && binPath.StartsWith(project.ProjectFolder, StringComparison.OrdinalIgnoreCase))
+            if (binPath != null && AppPaths.IsInside(binPath, project.ProjectFolder))
             {
                 project.LastBinName = Path.GetRelativePath(project.ProjectFolder, binPath);
             }
@@ -1356,7 +1370,7 @@ public partial class TuneViewModel : ObservableObject
     {
         // Only BINs that belong to the project are compared with its base (a file opened "just to look" is not).
         if (this.CurrentProject?.BaseBinPath is not { } baseBin || this.BinPath == null || this.BinData == null
-            || !this.BinPath.StartsWith(this.CurrentProject.ProjectFolder, StringComparison.OrdinalIgnoreCase)
+            || !AppPaths.IsInside(this.BinPath, this.CurrentProject.ProjectFolder)
             || string.Equals(Path.GetFullPath(baseBin), Path.GetFullPath(this.BinPath), StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -1393,28 +1407,42 @@ public partial class TuneViewModel : ObservableObject
             // Not readable (a protected TunerPro file, or not an XDF): keep what was open and say so.
             this.XdfPath = previousPath;
             this.XdfName = previousName;
-            this.Status = $"{Path.GetFileName(path)} cannot be read. It is probably a protected XDF that only TunerPro can open, " +
-                          "or it is not an XDF. " + (previousPath != null ? "Still using " + previousName + "." : "Use an unprotected XDF.");
+            string reason = this.Status;
+            this.Status = $"{Path.GetFileName(path)} was not opened. {reason} " +
+                          "(A protected XDF can only be opened in TunerPro.) " +
+                          (previousPath != null ? "Still using " + previousName + "." : "Use an unprotected XDF.");
             return;
         }
 
-        // Same as LS-Studio: keep one copy of each (readable) XDF in the shared library.
+        // Same as LS-Studio: keep one copy of each (readable) XDF in the shared library. The copy is of the file that was actually loaded
+        // (when the XDF had to be converted, that is the converted copy, not the original), and a different XDF that is already in the
+        // library under the same name is never overwritten.
         try
         {
+            string loaded = this.XdfPath ?? path;
             Directory.CreateDirectory(ProjectInfo.XdfLibraryFolder);
-            string library = Path.Combine(ProjectInfo.XdfLibraryFolder, Path.GetFileName(path));
-            if (!string.Equals(path, library, StringComparison.OrdinalIgnoreCase))
+            string library = Path.Combine(ProjectInfo.XdfLibraryFolder, Path.GetFileName(loaded));
+            string note = string.Empty;
+            if (!string.Equals(Path.GetFullPath(loaded), Path.GetFullPath(library), StringComparison.OrdinalIgnoreCase))
             {
-                await Task.Run(() => File.Copy(path, library, overwrite: true));
+                if (!File.Exists(library))
+                {
+                    await Task.Run(() => File.Copy(loaded, library));
+                    note = $"{Path.GetFileName(loaded)} was added to the XDF library. ";
+                }
+                else if (!await Task.Run(() => SameContent(loaded, library)))
+                {
+                    note = "A different XDF with the same name is already in the XDF library, so this one was not copied there. ";
+                    library = loaded;   // keep using the file that was chosen
+                }
             }
 
-            bool added = !string.Equals(path, library, StringComparison.OrdinalIgnoreCase);
             this.XdfPath = library;
             this.XdfName = Path.GetFileName(library) + " (manually selected)";
             this.NoteProjectFiles(null, library);
-            if (added)
+            if (note.Length > 0)
             {
-                this.Status = $"{Path.GetFileName(path)} was added to the XDF library. " + this.Status;
+                this.Status = note + this.Status;
             }
         }
         catch
@@ -1424,6 +1452,9 @@ public partial class TuneViewModel : ObservableObject
 
         await this.CompareToProjectBaseAsync();
     }
+
+    private static bool SameContent(string a, string b) =>
+        new FileInfo(a).Length == new FileInfo(b).Length && File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
 
     private async Task<bool> LoadAsync()
     {
@@ -1481,6 +1512,13 @@ public partial class TuneViewModel : ObservableObject
 
             List<PatchDefinition> patches = await Task.Run(() => XdfParser.ParsePatches(xdf));
 
+            // Check before changing anything: an XDF with nothing in it must leave the open BIN, its edits and its tables as they were.
+            if (tables.Count == 0 && patches.Count == 0)
+            {
+                this.Status = "XDF parsed but no tables found. Check that the XDF matches this BIN.";
+                return false;
+            }
+
             bool keepEdits = this.IsBinOnly && this.IsDirty;
             this.BinData = data;
             this.IsBinOnly = false;
@@ -1505,14 +1543,6 @@ public partial class TuneViewModel : ObservableObject
             foreach (TableDefinition table in tables)
             {
                 this.tablesByName[table.Name] = table;
-            }
-
-            if (tables.Count == 0 && patches.Count == 0)
-            {
-                this.Categories.Clear();
-                this.allCategories = new List<ParameterNode>();
-                this.Status = "XDF parsed but no tables found. Check that the XDF matches this BIN.";
-                return false;
             }
 
             this.allCategories = BuildTree(tables, patches);
