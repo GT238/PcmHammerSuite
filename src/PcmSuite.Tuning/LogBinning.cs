@@ -127,13 +127,34 @@ public static class LogBinning
         double[] columnAxis,
         double[] rowAxis,
         bool rpmOnColumns)
+        => Bin(log, rpmIndex, loadIndex, (_, sample) => value(sample), columnAxis, rowAxis, rpmOnColumns, null);
+
+    /// <summary>
+    /// As above, but <paramref name="value"/> also gets the sample's position in the log (so it can look at a later sample, for a delayed
+    /// reading), and a sample whose flag in <paramref name="accept"/> is false is left out.
+    /// </summary>
+    public static CellStats Bin(
+        LoggedData log,
+        int rpmIndex,
+        int loadIndex,
+        Func<int, double[], double> value,
+        double[] columnAxis,
+        double[] rowAxis,
+        bool rpmOnColumns,
+        bool[]? accept)
     {
         double[] rpmAxis = rpmOnColumns ? columnAxis : rowAxis;
         double[] loadAxis = rpmOnColumns ? rowAxis : columnAxis;
         CellStats stats = new(rowAxis.Length, columnAxis.Length);
 
-        foreach (double[] sample in log.Samples)
+        for (int i = 0; i < log.Samples.Count; i++)
         {
+            if (accept != null && !accept[i])
+            {
+                continue;
+            }
+
+            double[] sample = log.Samples[i];
             double rpm = sample[rpmIndex];
             double load = sample[loadIndex];
             if (double.IsNaN(rpm) || double.IsNaN(load) || rpm <= 0)
@@ -141,7 +162,7 @@ public static class LogBinning
                 continue;
             }
 
-            double v = value(sample);
+            double v = value(i, sample);
             if (double.IsNaN(v) || double.IsInfinity(v))
             {
                 continue;

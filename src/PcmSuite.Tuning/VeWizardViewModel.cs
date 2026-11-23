@@ -32,6 +32,7 @@ public sealed partial class VeWizardViewModel : ObservableObject
 {
     private readonly ValueEditorViewModel editor;
     private LoggedData? log;
+    private double[]? elapsed;
 
     [ObservableProperty] private string _logName = "No log loaded";
     [ObservableProperty] private string _status = "Choose a log file written by the Logger.";
@@ -44,6 +45,15 @@ public sealed partial class VeWizardViewModel : ObservableObject
     [ObservableProperty] private int _minSamples = 5;
     [ObservableProperty] private double _maxChange = 15;
     [ObservableProperty] private bool _rpmOnColumns;
+
+    // Samples to leave out. Each column choice is in the optional list (0 = none, so rule off).
+    [ObservableProperty] private int _coolantIndex;
+    [ObservableProperty] private double _minCoolant = 160;
+    [ObservableProperty] private int _throttleIndex;
+    [ObservableProperty] private double _maxThrottleRate = 50;
+    [ObservableProperty] private int _injectorIndex;
+    [ObservableProperty] private double _steadyMs;
+    [ObservableProperty] private double _delayMs;
     [ObservableProperty] private bool _hasResults;
     [ObservableProperty] private string _summary = string.Empty;
 
@@ -65,6 +75,19 @@ public sealed partial class VeWizardViewModel : ObservableObject
 
     partial void OnModeChanged(int value) => this.OnPropertyChanged(nameof(this.IsAfrMode));
 
+    /// <summary>The log has readable elapsed times, so the throttle, steady and delay settings can work.</summary>
+    [ObservableProperty] private bool _hasTiming;
+
+    // A coolant reading in Fahrenheit and one in Celsius need very different limits, so picking the column sets a sensible one.
+    partial void OnCoolantIndexChanged(int value)
+    {
+        if (this.log != null && value > 0)
+        {
+            string units = this.log.Columns[value - 1].Units;
+            this.MinCoolant = units.Contains('F', StringComparison.OrdinalIgnoreCase) ? 160 : 70;
+        }
+    }
+
     public async Task LoadAsync(string path)
     {
         try
@@ -76,6 +99,8 @@ public sealed partial class VeWizardViewModel : ObservableObject
             });
 
             this.log = data;
+            this.elapsed = await Task.Run(() => LogTiming.ReadElapsedSeconds(path, data.Samples.Count));
+            this.HasTiming = this.elapsed != null;
             this.LogName = Path.GetFileName(path);
             this.Headings.Clear();
             this.HeadingsOptional.Clear();
@@ -92,6 +117,17 @@ public sealed partial class VeWizardViewModel : ObservableObject
             int trim = LogBinning.FindColumn(data, "long term", "ltft");
             this.TrimIndex = trim < 0 ? 0 : trim + 1;
             this.Mode = this.ValueIndex >= 0 && data.Columns[this.ValueIndex].Name.Contains("term", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+            // The rules that keep the numbers honest: on whenever the log has the column for them.
+            int coolant = LogBinning.FindColumn(data, "coolant", "ect");
+            this.CoolantIndex = coolant < 0 ? 0 : coolant + 1;
+            int throttle = LogBinning.FindColumn(data, "throttle", "tps");
+            this.ThrottleIndex = throttle < 0 ? 0 : throttle + 1;
+            int injector = LogBinning.FindColumn(data, "injector pwm", "idc", "injector");
+            this.InjectorIndex = injector < 0 ? 0 : injector + 1;
+            this.SteadyMs = 0;
+            this.DelayMs = 0;
+
             this.Results.Clear();
             this.HasResults = false;
             this.Status = $"{data.Samples.Count:N0} samples, {data.Columns.Count} columns" +
@@ -133,14 +169,45 @@ public sealed partial class VeWizardViewModel : ObservableObject
         bool afr = this.Mode == 0;
         double target = this.Target;
 
+        LoggedData data = this.log;
+        // Leave out the samples that cannot say what the table should hold.
+        double[] loadAxis = this.RpmOnColumns ? rowAxis : colAxis;
+        double loadSpan = loadAxis.Length > 1 ? loadAxis.Max() - loadAxis.Min() : 0;
+        SampleFilterSettings rules = new()
+        {
+            CoolantIndex = this.CoolantIndex - 1,
+            MinCoolant = this.MinCoolant,
+            ThrottleIndex = this.ThrottleIndex - 1,
+            MaxThrottleRate = this.MaxThrottleRate,
+            InjectorIndex = this.InjectorIndex - 1,
+            FuelCutBelow = this.InjectorIndex > 0 && data.Columns[this.InjectorIndex - 1].Units.Contains('%') ? 1.0 : 0.3,
+            SteadyMs = this.SteadyMs,
+            LoadTolerance = Math.Max(1, loadSpan * 0.05),
+        };
+        SampleFilterResult filtered = SampleFilter.Evaluate(data, this.elapsed, rules, this.RpmIndex, this.LoadIndex);
+
+        // A wideband reads the exhaust a moment after the burn, so for air/fuel the reading that belongs to a sample is a later one.
+        int[]? later = afr && this.DelayMs > 0 && this.elapsed != null ? SampleFilter.DelayedIndex(this.elapsed, this.DelayMs) : null;
+
         // Each sample becomes a fuel correction factor; one the wizard cannot use (no reading, or a factor of zero or less) returns NaN and is skipped.
         CellStats stats = LogBinning.Bin(
             this.log,
             this.RpmIndex,
             this.LoadIndex,
-            sample =>
+            (index, sample) =>
             {
-                double value = sample[valueColumn];
+                double[] reading = sample;
+                if (later != null)
+                {
+                    if (later[index] < 0)
+                    {
+                        return double.NaN;
+                    }
+
+                    reading = data.Samples[later[index]];
+                }
+
+                double value = reading[valueColumn];
                 double trim = trimColumn >= 0 ? sample[trimColumn] : 0;
                 if (double.IsNaN(value) || double.IsNaN(trim))
                 {
@@ -152,7 +219,8 @@ public sealed partial class VeWizardViewModel : ObservableObject
             },
             colAxis,
             rowAxis,
-            this.RpmOnColumns);
+            this.RpmOnColumns,
+            filtered.Accepted);
         int used = stats.Used;
         int outside = stats.Outside;
         int[,] count = stats.Count;
@@ -190,6 +258,16 @@ public sealed partial class VeWizardViewModel : ObservableObject
             ? $"{this.Results.Count} cell(s) have at least {this.MinSamples} samples. {used:N0} samples used" +
               (outside > 0 ? $", {outside:N0} fell outside the table" : string.Empty) + "."
             : "No cell has enough samples. Lower the minimum, or log more driving in the table's range.";
+        if (filtered.TotalRejected > 0)
+        {
+            this.Summary += $" Left out: {filtered.Describe()}.";
+        }
+
+        if (filtered.SkippedForWantOfTime)
+        {
+            this.Summary += " This log has no readable elapsed times, so the throttle and steady rules were skipped.";
+        }
+
         this.Status = this.Summary;
     }
 

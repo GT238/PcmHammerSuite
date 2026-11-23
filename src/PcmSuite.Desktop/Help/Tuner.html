@@ -218,9 +218,24 @@
     <li>Press <b>Newest Logger log</b> (the project's <code>logs</code> folder, or the Logger's folder) or <b>Open log...</b>.</li>
     <li>Check the columns it picked: engine speed, load (MAP), the measurement, and an optional second trim.</li>
     <li>Choose what the measurement is: an air/fuel ratio or lambda (divided by the target you enter), or a fuel trim percent (added to the second trim if chosen).</li>
+    <li>Look at <b>Leave out samples that cannot be trusted</b> (below). The wizard fills it in from the log's own columns.</li>
     <li>Set <b>Min samples per cell</b> and <b>Max change %</b>, tick <b>RPM runs along the table's columns</b> if it does, and press <b>Calculate</b>.</li>
     <li>Review the list, then <b>Apply to table</b>. It is one edit you can undo.</li>
 </ol>
+<p>
+    <b>Leave out samples that cannot be trusted.</b> A sample is only useful if it says what this cell should hold. These rules drop the ones that do not, and after
+    Calculate the summary says how many each one removed ("Left out: 412 engine cold, 51 fuel cut"). Pick <b>(none)</b> for a rule to switch it off.
+</p>
+<ul>
+    <li><b>Coolant at least</b> - a cold engine runs warm-up enrichment, which is not the table's job. The limit is in the column's own units, so the wizard starts at 160 for a Fahrenheit column and 70 for Celsius.</li>
+    <li><b>Throttle moves under</b> - while the throttle is moving fast, the fuel the sensor reports belongs to an earlier moment. The default is 50 % per second.</li>
+    <li><b>Fuel cut</b> - choose an injector pulse or duty column. A reading near zero means the fuel was cut (deceleration), which reads lean by definition.</li>
+    <li><b>Steady for</b> - engine speed and load must have stayed put for this many milliseconds before a sample counts. It is off to begin with; try 800. It leaves fewer samples, covering fewer cells, but the ones that remain are more honest.</li>
+    <li><b>Wideband delay</b> - a wideband sensor reads the exhaust a moment after the burn (often about half a second). Each sample is paired with the reading that much later, so the correction goes to the cell that actually made it. It is off to begin with.</li>
+</ul>
+<p>
+    The throttle, steady and delay rules need the log's elapsed times. Logs from the Logger have them; if one does not, the page says so and the summary notes that those rules were skipped.
+</p>
 <p>
     Each logged sample goes into the nearest cell using the table's own axes, and a cell's correction is the average over its samples. The table's axes must list real values
     (RPM and kPa), not just 1, 2, 3. These are <b>suggestions</b>: they only mean something for driving where that table actually controls the fuelling (for example speed-density, or MAF failure).

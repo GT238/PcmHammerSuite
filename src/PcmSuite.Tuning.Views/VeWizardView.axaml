@@ -53,6 +53,43 @@
                 </StackPanel>
             </WrapPanel>
 
+            <Expander Header="Leave out samples that cannot be trusted" IsExpanded="True" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="6">
+                    <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                               Text="A cold engine, a closed throttle (fuel cut) and a throttle that is moving all give readings that do not belong to the cell they landed in. Each rule works when its column is chosen; pick (none) to switch it off. After Calculate, the summary says how many samples each rule left out."/>
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+                        <TextBlock Text="Coolant" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeadingsOptional}" SelectedIndex="{Binding CoolantIndex}"/>
+                        <TextBlock Grid.Column="2" Text="at least" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Column="3" Value="{Binding MinCoolant}" Increment="5" FormatString="0" MinWidth="120"
+                                       ToolTip.Tip="In the coolant column's own units. The log's temperature column decides whether this is Fahrenheit or Celsius"/>
+
+                        <TextBlock Grid.Row="1" Text="Throttle" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeadingsOptional}" SelectedIndex="{Binding ThrottleIndex}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="moves under (% per s)" VerticalAlignment="Center"/>
+                        <NumericUpDown Grid.Row="1" Grid.Column="3" Value="{Binding MaxThrottleRate}" Minimum="1" Maximum="1000" Increment="10" FormatString="0" MinWidth="120"/>
+
+                        <TextBlock Grid.Row="2" Text="Fuel cut" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeadingsOptional}" SelectedIndex="{Binding InjectorIndex}"
+                                  ToolTip.Tip="An injector pulse or duty column. A reading near zero means the fuel was cut (deceleration)"/>
+                    </Grid>
+                    <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,6">
+                            <TextBlock Text="Steady for (ms, 0 = off)" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding SteadyMs}" Minimum="0" Maximum="10000" Increment="100" FormatString="0" MinWidth="120"
+                                           ToolTip.Tip="Engine speed and load must have stayed put for this long before a sample counts. Try 800"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6" IsVisible="{Binding IsAfrMode}">
+                            <TextBlock Text="Wideband delay (ms, 0 = off)" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding DelayMs}" Minimum="0" Maximum="3000" Increment="50" FormatString="0" MinWidth="120"
+                                           ToolTip.Tip="A wideband reads the exhaust a moment after the burn. Each sample is paired with the reading this much later"/>
+                        </StackPanel>
+                    </WrapPanel>
+                    <TextBlock Text="This log has no readable elapsed times, so the throttle, steady and delay settings will not work." Foreground="#E8A838" TextWrapping="Wrap"
+                               IsVisible="{Binding !HasTiming}"/>
+                </StackPanel>
+            </Expander>
+
             <CheckBox Content="RPM runs along the table's columns (the top row)" IsChecked="{Binding RpmOnColumns}"/>
             <Button Content="Calculate" Click="OnCalculate"/>
         </StackPanel>

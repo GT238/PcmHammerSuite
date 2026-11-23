@@ -159,4 +159,98 @@ public class LogBinningTests
             File.Delete(path);
         }
     }
+
+    private const string FilterHeader =
+        "Clock, Elapsed, PID 000C: Engine Speed (RPM), PID 000B: MAP Sensor (kPa), PID 0005: ECT Sensor (°F), PID 0011: Throttle Position (%), PID 125A: Injector PWM (ms), PID 0034: Air/Fuel Ratio (AFR)";
+
+    [Fact]
+    public async Task VeWizard_LeavesOutColdAndFuelCutSamples_AndSaysSo()
+    {
+        ValueEditorViewModel editor = Table(out _);
+        string path = Path.Combine(Path.GetTempPath(), "pcmsuite-filter-" + Guid.NewGuid().ToString("N") + ".csv");
+        try
+        {
+            List<string> lines = new() { FilterHeader };
+            int n = 0;
+            for (int i = 0; i < 6; i++)
+            {
+                lines.Add($"2026-01-01 00:00:00Z, {n++ * 0.1:0.0}, 2000, 60, 190, 20, 3.0, 16.17");   // 10% lean, warm, fuelled
+            }
+
+            for (int i = 0; i < 3; i++)
+            {
+                lines.Add($"2026-01-01 00:00:00Z, {n++ * 0.1:0.0}, 2000, 60, 100, 20, 3.0, 22.0");    // cold: would drag the average up
+            }
+
+            for (int i = 0; i < 2; i++)
+            {
+                lines.Add($"2026-01-01 00:00:00Z, {n++ * 0.1:0.0}, 2000, 60, 190, 20, 0.0, 30.0");    // fuel cut: lean by definition
+            }
+
+            await File.WriteAllLinesAsync(path, lines);
+            VeWizardViewModel wizard = new(editor);
+            await wizard.LoadAsync(path);
+
+            // Picked up from the log's own columns.
+            Assert.True(wizard.CoolantIndex > 0);
+            Assert.True(wizard.ThrottleIndex > 0);
+            Assert.True(wizard.InjectorIndex > 0);
+            Assert.Equal(160, wizard.MinCoolant);       // a Fahrenheit column
+            Assert.True(wizard.HasTiming);
+
+            wizard.Calculate();
+
+            VeCellResult cell = Assert.Single(wizard.Results);
+            Assert.Equal(6, cell.Samples);
+            Assert.Equal(110.0, cell.NewScaled, 1);
+            Assert.Contains("6 samples used", wizard.Summary);
+            Assert.Contains("Left out: 3 engine cold, 2 fuel cut", wizard.Summary);
+
+            // With the rules switched off the unusable samples would have been averaged in.
+            wizard.CoolantIndex = 0;
+            wizard.InjectorIndex = 0;
+            wizard.MaxChange = 50;
+            wizard.Calculate();
+            Assert.True(Math.Abs(Assert.Single(wizard.Results).Percent - 10) > 5);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task VeWizard_WidebandDelay_PairsEachSampleWithALaterReading()
+    {
+        ValueEditorViewModel editor = Table(out _);
+        string path = Path.Combine(Path.GetTempPath(), "pcmsuite-delay-" + Guid.NewGuid().ToString("N") + ".csv");
+        try
+        {
+            // The engine is lean from the sixth reading on; the wideband sees that half a second after it happens.
+            List<string> lines = new() { FilterHeader };
+            for (int i = 0; i < 10; i++)
+            {
+                double afr = i < 5 ? 14.7 : 16.17;
+                lines.Add($"2026-01-01 00:00:00Z, {i * 0.1:0.0}, 2000, 60, 190, 20, 3.0, {afr}");
+            }
+
+            await File.WriteAllLinesAsync(path, lines);
+            VeWizardViewModel wizard = new(editor);
+            await wizard.LoadAsync(path);
+            wizard.MinSamples = 5;
+
+            wizard.Calculate();
+            Assert.Equal(5.0, Assert.Single(wizard.Results).Percent, 1);      // no delay: half the samples are on each side
+
+            wizard.DelayMs = 500;
+            wizard.Calculate();
+            VeCellResult cell = Assert.Single(wizard.Results);
+            Assert.Equal(5, cell.Samples);                                   // the last five have no later reading
+            Assert.Equal(10.0, cell.Percent, 1);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
