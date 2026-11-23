@@ -295,6 +295,8 @@ namespace PcmSuite.Tuning.Core.Parsers
 
             foreach (var xTable in doc.Descendants().Where(x => x.Name.LocalName == "XDFTABLE"))
             {
+              try
+              {
                 var table = new TableDefinition();
 
                 table.Name        = xTable.Elements().FirstOrDefault(x => x.Name.LocalName == "title")?.Value ?? "Unnamed";
@@ -307,19 +309,25 @@ namespace PcmSuite.Tuning.Core.Parsers
 
                 if (table.Address > 0)
                     tables.Add(table);
+              }
+              catch (Exception) { /* one malformed table is skipped; the rest of the XDF still loads */ }
             }
 
             // XDFCONSTANT — scalar value (1×1 table)
             foreach (var xConst in doc.Descendants().Where(x => x.Name.LocalName == "XDFCONSTANT"))
             {
-                var table = ParseScalar(xConst, categories, uniqueIdToTitle);
-                if (table != null) tables.Add(table);
+                try
+                {
+                    var table = ParseScalar(xConst, categories, uniqueIdToTitle);
+                    if (table != null) tables.Add(table);
+                }
+                catch (Exception) { /* skipped, as above */ }
             }
 
             // XDFFLAG — single bit flag (1×1 table with mask)
             foreach (var xFlag in doc.Descendants().Where(x => x.Name.LocalName == "XDFFLAG"))
             {
-                var table = ParseScalar(xFlag, categories, uniqueIdToTitle);
+                var table = TryParseScalar(xFlag, categories, uniqueIdToTitle);
                 if (table != null)
                 {
                     string? maskStr = xFlag.Elements().FirstOrDefault(x => x.Name.LocalName == "mask")?.Value;
@@ -466,10 +474,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 string? levelStr  = catMem.Attribute("index")?.Value;
                 if (catIdxStr == null) continue;
 
-                int catIdx;
-                if (catIdxStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                { try { catIdx = Convert.ToInt32(catIdxStr, 16); } catch { continue; } }
-                else if (!int.TryParse(catIdxStr, out catIdx)) continue;
+                if (!TryParseIndex(catIdxStr, out int catIdx)) continue;
 
                 if (!categories.TryGetValue(catIdx - 1, out string? catName)) continue;
 
@@ -483,6 +488,14 @@ namespace PcmSuite.Tuning.Core.Parsers
             table.Category    = vals[0];
             if (vals.Count > 1) table.SubCategory    = vals[1];
             if (vals.Count > 2) table.SubSubCategory = vals[2];
+        }
+
+        /// <summary>As <see cref="ParseScalar"/>, but an entry that cannot be read is skipped (null) instead of ending the load.</summary>
+        private static TableDefinition? TryParseScalar(XElement xElem, Dictionary<int, string> categories,
+            Dictionary<string, string>? uniqueIdToTitle = null)
+        {
+            try { return ParseScalar(xElem, categories, uniqueIdToTitle); }
+            catch (Exception) { return null; }
         }
 
         /// <summary>Parse an XDFCONSTANT or XDFFLAG as a 1×1 scalar TableDefinition.</summary>
@@ -501,7 +514,7 @@ namespace PcmSuite.Tuning.Core.Parsers
             {
                 string? addr = embed.Attribute("mmedaddress")?.Value;
                 if (!string.IsNullOrEmpty(addr))
-                    table.Address = Convert.ToUInt32(addr.Replace("0x", "").Replace("0X", ""), 16);
+                    { if (TryParseHexUInt(addr, out uint parsedAddress)) table.Address = parsedAddress; }
 
                 string? bits = embed.Attribute("mmedelementsizebits")?.Value;
                 if (bits != null && int.TryParse(bits, out int eb)) table.ElementBits = eb;
@@ -537,7 +550,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 {
                     string? addr = embed.Attribute("mmedaddress")?.Value;
                     if (!string.IsNullOrEmpty(addr))
-                        table.Address = Convert.ToUInt32(addr.Replace("0x", "").Replace("0X", ""), 16);
+                        { if (TryParseHexUInt(addr, out uint parsedAddress)) table.Address = parsedAddress; }
 
                     string? bits = embed.Attribute("mmedelementsizebits")?.Value;
                     if (bits != null && int.TryParse(bits, out int eb)) table.ElementBits = eb;
@@ -693,7 +706,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 {
                     string? levelStr  = catMem.Attribute("index")?.Value;
                     string? catIdxStr = catMem.Attribute("category")?.Value;
-                    if (catIdxStr == null || !int.TryParse(catIdxStr, out int catIdx)) continue;
+                    if (catIdxStr == null || !TryParseIndex(catIdxStr, out int catIdx)) continue;
                     if (!categories.TryGetValue(catIdx - 1, out string? catName)) continue;
                     if (levelStr == "0") patch.Category    = catName;
                     if (levelStr == "1") patch.SubCategory = catName;
@@ -706,11 +719,13 @@ namespace PcmSuite.Tuning.Core.Parsers
                     string? dataStr  = xEntry.Attribute("patchdata")?.Value;
                     if (addrStr == null || dataStr == null) continue;
 
-                    byte[] data = HexStringToBytes(dataStr);
+                    // An entry whose address or data is not hex is left out; the rest of the patch still loads.
+                    byte[]? data = HexStringToBytes(dataStr);
+                    if (data == null || !TryParseHexUInt(addrStr, out uint entryAddress)) continue;
                     patch.Entries.Add(new PatchEntry
                     {
                         Name    = name ?? "",
-                        Address = Convert.ToUInt32(addrStr.Replace("0x", "").Replace("0X", ""), 16),
+                        Address = entryAddress,
                         Data    = data,
                     });
                 }
@@ -731,9 +746,8 @@ namespace PcmSuite.Tuning.Core.Parsers
                 {
                     string? idxStr = cat.Attribute("index")?.Value;
                     string? name   = cat.Attribute("name")?.Value;
-                    if (idxStr != null && name != null)
+                    if (idxStr != null && name != null && TryParseIndex(idxStr, out int idx))
                     {
-                        int idx = Convert.ToInt32(idxStr, idxStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16 : 10);
                         categories[idx] = name;
                     }
                 }
@@ -755,13 +769,40 @@ namespace PcmSuite.Tuning.Core.Parsers
             c == '-' || c == '.' || c == '\xB7'          ||
             (c >= '0' && c <= '9');
 
-        private static byte[] HexStringToBytes(string hex)
+        /// <summary>A hex number with or without a 0x prefix. False for anything else (empty, too long for 32 bits, not hex), so one bad entry does not stop the file loading.</summary>
+        public static bool TryParseHexUInt(string? text, out uint value)
+        {
+            value = 0;
+            string s = (text ?? string.Empty).Trim();
+            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s.Substring(2);
+            return s.Length > 0 && uint.TryParse(s, System.Globalization.NumberStyles.AllowHexSpecifier,
+                System.Globalization.CultureInfo.InvariantCulture, out value);
+        }
+
+        /// <summary>An index written as a plain number or as 0x hex (the category lists use both).</summary>
+        public static bool TryParseIndex(string? text, out int value)
+        {
+            value = 0;
+            string s = (text ?? string.Empty).Trim();
+            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                return int.TryParse(s.Substring(2), System.Globalization.NumberStyles.AllowHexSpecifier,
+                    System.Globalization.CultureInfo.InvariantCulture, out value);
+            return int.TryParse(s, System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out value);
+        }
+
+        /// <summary>Hex digits to bytes, or null when the text is not hex.</summary>
+        private static byte[]? HexStringToBytes(string hex)
         {
             hex = hex.Replace(" ", "").Replace("0x", "");
             if (hex.Length % 2 != 0) hex = "0" + hex;
             var bytes = new byte[hex.Length / 2];
             for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            {
+                if (!byte.TryParse(hex.AsSpan(i * 2, 2), System.Globalization.NumberStyles.AllowHexSpecifier,
+                        System.Globalization.CultureInfo.InvariantCulture, out bytes[i]))
+                    return null;
+            }
             return bytes;
         }
 

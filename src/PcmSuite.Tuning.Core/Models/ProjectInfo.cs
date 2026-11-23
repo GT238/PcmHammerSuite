@@ -249,6 +249,9 @@ namespace PcmSuite.Tuning.Core.Models
         /// </summary>
         public static bool MigrateLegacyRoot()
         {
+            // Copy into a staging folder and rename it when the copy is complete. A copy that stops half way (a locked file, a full disk) then
+            // leaves nothing at the real path, so the next start tries again, instead of finding a half-filled folder and thinking it is done.
+            string staging = DefaultProjectsRoot + ".migrating";
             try
             {
                 if (Directory.Exists(DefaultProjectsRoot) || !Directory.Exists(LegacyProjectsRoot))
@@ -256,11 +259,29 @@ namespace PcmSuite.Tuning.Core.Models
                     return false;
                 }
 
-                CopyFolder(LegacyProjectsRoot, DefaultProjectsRoot);
+                if (Directory.Exists(staging))
+                {
+                    Directory.Delete(staging, true);
+                }
+
+                CopyFolder(LegacyProjectsRoot, staging);
+                Directory.Move(staging, DefaultProjectsRoot);
                 return true;
             }
             catch
             {
+                try
+                {
+                    if (Directory.Exists(staging))
+                    {
+                        Directory.Delete(staging, true);
+                    }
+                }
+                catch
+                {
+                    // Left behind; the next attempt removes it first.
+                }
+
                 return false;
             }
         }

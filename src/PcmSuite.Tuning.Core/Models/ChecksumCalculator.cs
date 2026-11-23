@@ -36,24 +36,11 @@ namespace PcmSuite.Tuning.Core.Models
         {
             var messages = new List<string>();
 
-            const uint TableAddress = 0x50C;
             const int  Segments     = 8;
 
             for (uint seg = 0; seg < Segments; seg++)
             {
-                uint startLoc = TableAddress + seg * 8;
-                uint endLoc   = startLoc + 4;
-
-                uint rawStart = ReadUInt32BE(image, startLoc);
-                uint rawEnd   = ReadUInt32BE(image, endLoc);
-
-                // Segment 0: checksum lives at 0x500, data starts at 0
-                // All others: checksum is the first word of the segment
-                uint checksumAddr = rawStart == 0 ? 0x500u : rawStart;
-                uint dataStart    = rawStart == 0 ? 0u     : rawStart + 2;
-
-                if (dataStart >= (uint)image.Length || rawEnd >= (uint)image.Length ||
-                    checksumAddr + 1 >= (uint)image.Length)
+                if (!TryReadSegmentEntry(image, seg, out uint checksumAddr, out uint dataStart, out uint rawEnd))
                 {
                     messages.Add($"Seg {seg}: address out of range, skipped.");
                     continue;
@@ -115,21 +102,11 @@ namespace PcmSuite.Tuning.Core.Models
             var result = new List<SegmentInfo>();
             if (requireP01Signature ? !IsP01P59(image) : image.Length < 0x600) return result;
 
-            const uint TableAddress = 0x50C;
             const int  Segments     = 8;
 
             for (uint seg = 0; seg < Segments; seg++)
             {
-                uint startLoc = TableAddress + seg * 8;
-                uint endLoc   = startLoc + 4;
-
-                uint rawStart = ReadUInt32BE(image, startLoc);
-                uint rawEnd   = ReadUInt32BE(image, endLoc);
-
-                uint checksumAddr = rawStart == 0 ? 0x500u : rawStart;
-                uint dataStart    = rawStart == 0 ? 0u     : rawStart + 2;
-
-                if (dataStart >= (uint)image.Length || rawEnd >= (uint)image.Length) continue;
+                if (!TryReadSegmentEntry(image, seg, out uint checksumAddr, out uint dataStart, out uint rawEnd)) continue;
 
                 ushort csum = (ushort)((image[checksumAddr] << 8) | image[checksumAddr + 1]);
 
@@ -182,6 +159,37 @@ namespace PcmSuite.Tuning.Core.Models
             }
 
             return sum;
+        }
+
+        /// <summary>
+        /// One row of the segment table: where its checksum word is, where its data starts and where it ends. False when any of those
+        /// lies outside the image, or the table itself does (an erased table of 0xFF bytes, say). The arithmetic is done in 64 bits:
+        /// in 32 bits a start of 0xFFFFFFFF wraps round to 1 and passes the range check.
+        /// </summary>
+        private static bool TryReadSegmentEntry(byte[] image, uint seg, out uint checksumAddr, out uint dataStart, out uint rawEnd)
+        {
+            const uint TableAddress = 0x50C;
+
+            checksumAddr = 0;
+            dataStart = 0;
+            rawEnd = 0;
+
+            long startLoc = TableAddress + seg * 8L;
+            if (startLoc + 8 > image.Length) return false;
+
+            uint rawStart = ReadUInt32BE(image, (uint)startLoc);
+            rawEnd = ReadUInt32BE(image, (uint)startLoc + 4);
+
+            // Segment 0: the checksum lives at 0x500 and the data starts at 0.
+            // All others: the checksum is the first word of the segment.
+            long checksum = rawStart == 0 ? 0x500L : rawStart;
+            long start    = rawStart == 0 ? 0L     : (long)rawStart + 2;
+
+            if (start >= image.Length || rawEnd >= image.Length || checksum + 1 >= image.Length) return false;
+
+            checksumAddr = (uint)checksum;
+            dataStart    = (uint)start;
+            return true;
         }
 
         private static uint ReadUInt32BE(byte[] buf, uint offset)
