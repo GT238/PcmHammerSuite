@@ -25,6 +25,12 @@ dotnet build src/PcmSuite.Desktop -c Release
 dotnet run --project src/PcmSuite.Desktop -c Release
 ```
 
+**Tuner only:** `src/PcmSuite.Tuner.Desktop` is the same Tuner as its own small app (`PcmSuiteTuner`), with no Flash, no Logger and no adapter needed. It is the easiest thing to try first:
+
+```
+dotnet run --project src/PcmSuite.Tuner.Desktop -c Release
+```
+
 Use `--recursive`. A plain `git clone` leaves `extern/PcmHammer` empty and the build fails. If you already cloned: `git submodule update --init`.
 
 **Kernel files are not included.** PCM Hammer only allows its PCM-side kernels inside its official releases. To read or write a PCM, copy the `Kernel-*.bin` files from an official PCM Hammer release into the folder that contains `PcmSuite.exe`. The Tuner works without them.

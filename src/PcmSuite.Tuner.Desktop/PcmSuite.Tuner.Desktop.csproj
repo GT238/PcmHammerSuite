@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Tuner on its own: no Flash, no Logger, no adapter and no kernels. Same Tuner code as the full suite. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PcmSuite</RootNamespace>
+    <AssemblyName>PcmSuiteTuner</AssemblyName>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>..\PcmSuite.Desktop\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\PcmSuite.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\assets\PcmSuite.ico" Link="Assets\PcmSuite.ico" />
+    <AvaloniaResource Include="..\..\assets\PcmTuner.png" Link="Assets\Tabs\Tune.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="FluentAvaloniaUI" />
+    <!-- The Help and Credits pages (in the full suite this comes in through PCM Hammer's projects). -->
+    <PackageReference Include="Avalonia.Controls.WebView" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PcmSuite.Tuning.Core\PcmSuite.Tuning.Core.csproj" />
+    <ProjectReference Include="..\PcmSuite.Tuning\PcmSuite.Tuning.csproj" />
+    <ProjectReference Include="..\PcmSuite.Tuning.Views\PcmSuite.Tuning.Views.csproj" />
+  </ItemGroup>
+
+  <!-- The Help and Credits tabs are shared with the full suite (PCM Hammer's own help page is left out here). -->
+  <ItemGroup>
+    <Compile Include="..\PcmSuite.Desktop\HelpView.cs" Link="HelpView.cs" />
+    <Compile Include="..\PcmSuite.Desktop\CreditsView.cs" Link="CreditsView.cs" />
+    <Content Include="..\PcmSuite.Desktop\Help\*.html" Link="Help\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\PcmSuite.Desktop\Credits\PcmSuite-credits.html" Link="Credits\PcmSuite-credits.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\PcmSuite.Desktop\Profiles\*.LogProfile" Link="Profiles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

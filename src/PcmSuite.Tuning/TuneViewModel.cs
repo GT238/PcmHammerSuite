@@ -151,6 +151,14 @@ public partial class TuneViewModel : ObservableObject
             this.IsComparing = true;
             await this.RecomputeChangesAsync();
             this.ShowEditor(this.SelectedNode, true);
+
+            // Show the result: list only the tables that differ (the box can be unticked to see everything again).
+            if (this.AllLeaves().Any(l => l.HasChanges))
+            {
+                string summary = this.Status;
+                this.ChangedOnly = true;
+                this.Status = summary.Replace("tick \"Changed tables only\" to list them.", "The list shows only those; untick \"Changed tables only\" to see all.");
+            }
         }
         catch (Exception ex)
         {

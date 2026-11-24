@@ -155,6 +155,13 @@ public partial class TuneView : UserControl
             this.attached.PropertyChanged += this.OnViewModelChanged;
         }
 
+        // Without a Logger to follow (the standalone Tuner) the Live button stays visible but greyed out, to show what is planned.
+        bool hasLiveSource = this.attached?.LiveSource != null;
+        this.LiveToggle.IsEnabled = hasLiveSource;
+        ToolTip.SetTip(this.LiveToggle, hasLiveSource
+            ? "Outline the cell the engine is in right now, from the Logger's engine speed and MAP readings"
+            : "Coming later: needs a connection to the Logger. Available in the full PcmSuite.");
+
         this.BuildEditor();
     }
 

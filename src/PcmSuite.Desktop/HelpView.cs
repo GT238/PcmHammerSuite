@@ -14,18 +14,21 @@ namespace PcmSuite;
 /// </summary>
 public sealed class HelpView : UserControl
 {
-    private static readonly (string Key, string Title, string File)[] Topics =
+    // PCM Hammer's page is only present in the full suite; the standalone Tuner leaves it (and the questions about it) out.
+    private static readonly bool HasHammerHelp = File.Exists(Path.Combine(AppContext.BaseDirectory, "Help", "PcmHammer-help.html"));
+
+    private static readonly (string Key, string Title, string File)[] Topics = new (string Key, string Title, string File)[]
     {
         ("welcome", "Welcome to PcmSuite", "Welcome.html"),
         ("hammer", "Flash and Logger (PCM Hammer's help)", "PcmHammer-help.html"),
         ("tuner", "The Tuner (manual)", "Tuner.html"),
-    };
+    }.Where(t => t.Key != "hammer" || HasHammerHelp).ToArray();
 
     /// <summary>One line in the "How do I...?" list or the search results.</summary>
     private sealed record Entry(string Title, string Detail, string Topic, string? Anchor);
 
     // Common tasks, each leading to the section that answers it.
-    private static readonly Entry[] Tasks =
+    private static readonly Entry[] Tasks = new Entry[]
     {
         new("Start a new project from a read or a BIN", "Make a vehicle folder for reads, tunes, logs and notes", "tuner", "projects"),
         new("Open a BIN and get its XDF", "How the matching XDF is found", "tuner", "opening"),
@@ -51,7 +54,7 @@ public sealed class HelpView : UserControl
         new("Get the kernel files", "Why they are not included", "welcome", "kernels"),
         new("Understand why only one tab can use the adapter", "One adapter at a time", "welcome", "adapter"),
         new("Check what to do before flashing", "A safety checklist", "welcome", "safety"),
-    };
+    }.Where(e => e.Topic != "hammer" || HasHammerHelp).ToArray();
 
     private readonly ComboBox picker = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 260 };
     private readonly TextBox search = new()

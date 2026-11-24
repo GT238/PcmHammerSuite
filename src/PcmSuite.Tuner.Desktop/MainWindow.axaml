@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PcmSuite.MainWindow"
+        Icon="avares://PcmSuiteTuner/Assets/PcmSuite.ico"
+        Title="PCM Tuner (prototype)" Width="1920" Height="1080" WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource ControlElevationBorderBrush}">
+            <TextBlock x:Name="ShellStatus" Text="Standalone Tuner: no adapter needed. Flashing and logging are in PCM Hammer or the full PcmSuite."
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Border>
+
+        <TabControl x:Name="Tabs">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Image Source="avares://PcmSuiteTuner/Assets/Tabs/Tune.png" Width="28" Height="28"/>
+                        <TextBlock Text="Tuner" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="TuneHost"/>
+            </TabItem>
+            <TabItem Header="Help"><ContentControl x:Name="HelpHost"/></TabItem>
+            <TabItem Header="Credits"><ContentControl x:Name="CreditsHost"/></TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

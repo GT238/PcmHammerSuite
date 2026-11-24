@@ -50,6 +50,9 @@ jobs:
       - name: Build the app
         run: dotnet build src/PcmSuite.Desktop --configuration Release
 
+      - name: Build the standalone Tuner
+        run: dotnet build src/PcmSuite.Tuner.Desktop --configuration Release
+
       - name: Build the tests
         run: dotnet build tests/PcmSuite.Tests --configuration Release
 

@@ -152,12 +152,16 @@
 <h3 id="compare">Compare</h3>
 <p>
     <b>Compare with BIN...</b> (menu, Checks) marks every table that differs from another BIN of the same size with a dot, and every changed cell
-    in an open table with an orange frame and the old value in its tooltip. Tick <b>Changed tables only</b> to list just those tables.
+    in an open table with an orange frame and the old value in its tooltip. When tables differ, the table list switches to <b>Changed tables only</b>
+    so you see them at once; untick the box to see every table again.
     Inside a project, every BIN of the project is compared with the project's base automatically. A BIN you open with "Just open it" from outside the project is not.
     <b>Stop comparing</b> turns it off.
 </p>
 <p>
-    To see <i>what</i> changed as a list, and to bring tables from another tune into yours, use the <a target="_self" href="#workbench">Compare workbench</a>. To see the changed bytes themselves, use the <a target="_self" href="#hex">Hex view</a>.
+    <b>Which compare do I use?</b> The comparison stays switched on while you work, so you can keep editing with the differences showing:
+    that is the one to use to check "what have I changed from stock?". The <a target="_self" href="#workbench">Compare workbench</a> is a separate page for
+    "what did this other tune change?": it lists the differing tables and cells and can copy tables into your BIN, and it does not leave anything marked afterwards.
+    To see the changed bytes themselves, use the <a target="_self" href="#hex">Hex view</a>.
 </p>
 
 <h3 id="hex">Hex view</h3>
