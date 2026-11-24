@@ -912,6 +912,14 @@ public partial class TuneView : UserControl
         }
     }
 
+    private async void OnEditDefinition(object? sender, RoutedEventArgs e)
+    {
+        if (this.ViewModel is { Editor: { } editor } vm)
+        {
+            await this.ShowOverlayAsync(new DefinitionEditorView(vm, DefinitionDraft.From(editor.Table)));
+        }
+    }
+
     private async void OnNewTable(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;

@@ -252,6 +252,8 @@
                             </StackPanel>
                             <Button x:Name="HistoryButton" Content="History" IsVisible="{Binding !Editor.IsFlag}"
                                     ToolTip.Tip="Recent edits to this table: pick one to take back everything after it"/>
+                            <Button Content="Definition..." Click="OnEditDefinition"
+                                    ToolTip.Tip="Change where this table's values are in the BIN, how they are scaled and where its headings come from. A preview shows the numbers."/>
                         </WrapPanel>
                         <local:SurfaceView x:Name="Surface" Grid.Row="2" Margin="0,10,0,0" MinHeight="260"
                                            IsVisible="{Binding ShowSurface}"/>
