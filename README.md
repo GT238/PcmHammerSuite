@@ -44,7 +44,7 @@ The standalone Tuner does not need the Android workload.
 
 **BIN and XDF files are not included.** Bring your own.
 
-Developed and tested on Windows. On Linux (Pop!_OS 24.04) it builds, the tests pass and the window starts; see [docs/LINUX-BUILD-RESULTS.md](docs/LINUX-BUILD-RESULTS.md). The screens have not yet been checked on Linux, and macOS is untried.
+Developed and tested on Windows. On Linux (Pop!_OS 24.04) it builds, the tests pass and the window starts; see [docs/LINUX-BUILD-RESULTS.md](docs/LINUX-BUILD-RESULTS.md). The Tuner window and its tabs open there, but the built-in Help viewer stayed blank on a Wayland desktop in a virtual machine (Pop!_OS 24.04); the **Open in your browser** button at the top of Help and Credits shows the same pages in your web browser. Other Linux screens and macOS are untried.
 
 ## What the Tuner does
 
