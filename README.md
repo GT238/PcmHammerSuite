@@ -18,13 +18,20 @@ dotnet build PcmSuite.sln -c Release
 dotnet run --project src/PcmSuite.Desktop -c Release
 ```
 
+**On Linux**, build the two projects directly instead of the solution, because PCM Hammer's own projects also target Android and a solution build asks for the Android SDK:
+
+```
+dotnet build src/PcmSuite.Desktop -c Release
+dotnet run --project src/PcmSuite.Desktop -c Release
+```
+
 Use `--recursive`. A plain `git clone` leaves `extern/PcmHammer` empty and the build fails. If you already cloned: `git submodule update --init`.
 
 **Kernel files are not included.** PCM Hammer only allows its PCM-side kernels inside its official releases. To read or write a PCM, copy the `Kernel-*.bin` files from an official PCM Hammer release into the folder that contains `PcmSuite.exe`. The Tuner works without them.
 
 **BIN and XDF files are not included.** Bring your own.
 
-Developed and tested on Windows. It is Avalonia, so Linux and macOS should be possible, but nothing here has been tried on them.
+Developed and tested on Windows. On Linux (Pop!_OS 24.04) it builds, the tests pass and the window starts; see [docs/LINUX-BUILD-RESULTS.md](docs/LINUX-BUILD-RESULTS.md). The screens have not yet been checked on Linux, and macOS is untried.
 
 ## What the Tuner does
 

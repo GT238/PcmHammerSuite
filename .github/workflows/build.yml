@@ -30,3 +30,28 @@ jobs:
       # Tests that need real BIN or XDF files skip themselves when those (uncommitted) files are absent.
       - name: Test
         run: dotnet test PcmSuite.sln --configuration Release --no-build --verbosity normal
+
+  # Linux builds the app and the tests directly. PcmSuite.sln also lists PCM Hammer's own projects, which target Android too
+  # and would need the Android SDK.
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with the PcmHammer submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Build the app
+        run: dotnet build src/PcmSuite.Desktop --configuration Release
+
+      - name: Build the tests
+        run: dotnet build tests/PcmSuite.Tests --configuration Release
+
+      - name: Test
+        run: dotnet test tests/PcmSuite.Tests --configuration Release --no-build --verbosity normal
