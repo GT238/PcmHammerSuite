@@ -1504,6 +1504,33 @@ public partial class TuneViewModel : ObservableObject
         await this.OpenBinAsync(this.BinPath);
     }
 
+    /// <summary>
+    /// Keep the tables now on screen as the Tuner's own definition for this BIN's OS: an XDF in the shared library, named with the OS ID,
+    /// so the next BIN with that OS finds it without any XDF being supplied.
+    /// </summary>
+    public async Task SaveMyDefinitionAsync()
+    {
+        if (this.BinData == null || this.IsBinOnly || this.tablesByName.Count == 0)
+        {
+            this.Status = "Nothing to save yet: open a BIN with an XDF first, then the tables on screen can be kept as your definition.";
+            return;
+        }
+
+        try
+        {
+            List<TableDefinition> tables = this.tablesByName.Values.ToList();
+            byte[] bin = this.BinData;
+            string source = this.XdfName.Length > 0 ? Path.GetFileName(this.XdfPath ?? this.XdfName) : "the open BIN";
+            string path = await Task.Run(() => DefinitionStore.Save(tables, bin, source, ProjectInfo.XdfLibraryFolder));
+            this.Status = $"Saved {tables.Count} tables as {Path.GetFileName(path)} in the XDF library (patches are not included). " +
+                          "It is offered automatically for any BIN with the same OS ID.";
+        }
+        catch (Exception ex)
+        {
+            this.Status = "The definition could not be saved: " + ex.Message;
+        }
+    }
+
     public async Task OpenXdfAsync(string path)
     {
         string? previousPath = this.XdfPath;

@@ -912,6 +912,14 @@ public partial class TuneView : UserControl
         }
     }
 
+    private async void OnSaveDefinition(object? sender, RoutedEventArgs e)
+    {
+        if (this.ViewModel != null)
+        {
+            await this.ViewModel.SaveMyDefinitionAsync();
+        }
+    }
+
     private async void OnCompare(object? sender, RoutedEventArgs e)
     {
         string? path = await this.PickFileAsync("Pick the reference BIN (for example the stock file)", "BIN files", preferStock: true, "*.bin", "*.BIN");

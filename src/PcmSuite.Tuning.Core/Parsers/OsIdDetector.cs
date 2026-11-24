@@ -82,6 +82,27 @@ namespace PcmSuite.Tuning.Core.Parsers
                 .ToList();
         }
 
+        /// <summary>
+        /// The OS ID this BIN most likely is: the part number that appears most often (the calibration's own number is repeated
+        /// more than the ones it merely refers to). Ties go to the one found first. Null if the BIN holds none.
+        /// </summary>
+        public static string? PrimaryId(byte[] bin)
+        {
+            string? best = null;
+            int bestCount = 0;
+            foreach (string id in ScanForOsIds(bin))
+            {
+                int count = CountOccurrences(bin, id);
+                if (count > bestCount)
+                {
+                    best = id;
+                    bestCount = count;
+                }
+            }
+
+            return best;
+        }
+
         private static int CountOccurrences(byte[] bin, string id)
         {
             byte[] pattern = Encoding.ASCII.GetBytes(id);
