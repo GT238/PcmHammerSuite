@@ -32,6 +32,11 @@ public partial class TuneView : UserControl
             button.Click += (_, _) => this.MenuToggle.IsChecked = false;
         }
 
+        // Right-click (or press and hold) on a table in the list. Handled on the whole tree, so it works wherever in a row the click lands,
+        // and a plain right-button release is accepted too in case the platform does not raise a context request.
+        this.NodeTree.AddHandler(ContextRequestedEvent, this.OnTreeContextRequested, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+        this.NodeTree.AddHandler(PointerReleasedEvent, this.OnTreePointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+
         // Drop a .bin or .xdf file anywhere on the Tuner to open it.
         DragDrop.SetAllowDrop(this, true);
         this.AddHandler(DragDrop.DragOverEvent, this.OnDragOver);
@@ -1294,16 +1299,56 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(page);
     }
 
-    /// <summary>Right-click on a table in the list: open, pin, tag, and copy its name or address.</summary>
-    private void OnNodeContextRequested(object? sender, ContextRequestedEventArgs e)
+    private DateTime lastNodeMenu = DateTime.MinValue;
+
+    /// <summary>The list entry under a click: the nearest control up the tree whose data is a table or folder.</summary>
+    private static (Control Target, ParameterNode Node)? NodeAt(object? source)
+    {
+        for (Visual? v = source as Visual; v != null; v = v.GetVisualParent())
+        {
+            if (v is Control c && c.DataContext is ParameterNode node && c is not TreeView)
+            {
+                return (c, node);
+            }
+        }
+
+        return null;
+    }
+
+    private void OnTreeContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (NodeAt(e.Source) is { } hit)
+        {
+            e.Handled = true;
+            this.ShowNodeMenu(hit.Target, hit.Node);
+        }
+    }
+
+    private void OnTreePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton == MouseButton.Right && NodeAt(e.Source) is { } hit)
+        {
+            e.Handled = true;
+            this.ShowNodeMenu(hit.Target, hit.Node);
+        }
+    }
+
+    /// <summary>The menu for a table in the list: open, pin, tag, edit its definition, and copy its name or address.</summary>
+    private void ShowNodeMenu(Control target, ParameterNode node)
     {
         TuneViewModel? vm = this.ViewModel;
-        if (vm == null || sender is not Control target || target.DataContext is not ParameterNode node)
+        if (vm == null)
         {
             return;
         }
 
-        e.Handled = true;
+        // A right-click can arrive as both a pointer release and a context request: show one menu.
+        if ((DateTime.UtcNow - this.lastNodeMenu).TotalMilliseconds < 400)
+        {
+            return;
+        }
+
+        this.lastNodeMenu = DateTime.UtcNow;
         ContextMenu menu = new();
 
         // A category (folder) has nothing to open or pin; it only offers its name.

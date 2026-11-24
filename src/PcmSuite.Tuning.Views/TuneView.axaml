@@ -131,11 +131,10 @@
                         </Grid>
                         <CheckBox Grid.Row="1" Margin="10,0,0,4" Content="Changed tables only"
                                   IsVisible="{Binding IsComparing}" IsChecked="{Binding ChangedOnly}"/>
-                        <TreeView Grid.Row="2" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedNode}">
+                        <TreeView x:Name="NodeTree" Grid.Row="2" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedNode}">
                             <TreeView.ItemTemplate>
                                 <TreeDataTemplate DataType="core:ParameterNode" ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" MinHeight="30" Background="Transparent"
-                                                ContextRequested="OnNodeContextRequested">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" MinHeight="30" Background="Transparent">
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                                         <TextBlock Text="●" Foreground="Orange" VerticalAlignment="Center"
                                                    IsVisible="{Binding HasChanges}"/>
