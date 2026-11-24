@@ -1,0 +1,51 @@
+name: Release
+
+# Pushing a tag such as v0.1.0-prototype builds the standalone Tuner for Windows and attaches it to a GitHub pre-release.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  tuner-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with the PcmHammer submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Test
+        run: dotnet test tests/PcmSuite.Tests --configuration Release
+
+      # Self-contained, so a tester needs nothing installed. Debug symbols are left out to keep the download small.
+      - name: Publish the standalone Tuner
+        run: dotnet publish src/PcmSuite.Tuner.Desktop --configuration Release -r win-x64 --self-contained -p:DebugType=none -p:DebugSymbols=false -o publish/PcmSuiteTuner
+
+      - name: Add the licence and the testing guide
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE publish/PcmSuiteTuner/LICENSE.txt
+          Copy-Item docs/TESTING.md publish/PcmSuiteTuner/TESTING.txt
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/PcmSuiteTuner/* -DestinationPath "PcmSuiteTuner-${{ github.ref_name }}-win-x64.zip"
+
+      - name: Create the pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PcmSuiteTuner-${{ github.ref_name }}-win-x64.zip
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            Prototype of the standalone Tuner for Windows (no adapter, no kernels, cannot talk to a PCM). Unzip and run `PcmSuiteTuner.exe`.
+            Read `TESTING.txt` in the zip first. Source: this repository, built from the commit this tag points at.
