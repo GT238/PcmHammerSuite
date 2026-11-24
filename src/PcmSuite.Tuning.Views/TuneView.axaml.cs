@@ -32,10 +32,9 @@ public partial class TuneView : UserControl
             button.Click += (_, _) => this.MenuToggle.IsChecked = false;
         }
 
-        // Right-click (or press and hold) on a table in the list. Handled on the whole tree, so it works wherever in a row the click lands,
-        // and a plain right-button release is accepted too in case the platform does not raise a context request.
-        this.NodeTree.AddHandler(ContextRequestedEvent, this.OnTreeContextRequested, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
-        this.NodeTree.AddHandler(PointerReleasedEvent, this.OnTreePointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+        // Right-click (or press and hold) on a table in the list shows its menu as one of the Tuner's own pages. Avalonia's pop-up menu
+        // opened but was not drawn in this window, and a page works the same on every platform. Handled on the whole tree, so it works wherever in a row the click lands.
+        this.NodeTree.AddHandler(ContextRequestedEvent, this.OnNodeContextRequested, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         // Drop a .bin or .xdf file anywhere on the Tuner to open it.
         DragDrop.SetAllowDrop(this, true);
@@ -1299,8 +1298,6 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(page);
     }
 
-    private DateTime lastNodeMenu = DateTime.MinValue;
-
     /// <summary>The list entry under a click: the nearest control up the tree whose data is a table or folder.</summary>
     private static (Control Target, ParameterNode Node)? NodeAt(object? source)
     {
@@ -1315,110 +1312,29 @@ public partial class TuneView : UserControl
         return null;
     }
 
-    private void OnTreeContextRequested(object? sender, ContextRequestedEventArgs e)
-    {
-        if (NodeAt(e.Source) is { } hit)
-        {
-            e.Handled = true;
-            this.ShowNodeMenu(hit.Target, hit.Node);
-        }
-    }
-
-    private void OnTreePointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (e.InitialPressMouseButton == MouseButton.Right && NodeAt(e.Source) is { } hit)
-        {
-            e.Handled = true;
-            this.ShowNodeMenu(hit.Target, hit.Node);
-        }
-    }
-
-    /// <summary>The menu for a table in the list: open, pin, tag, edit its definition, and copy its name or address.</summary>
-    private void ShowNodeMenu(Control target, ParameterNode node)
+    private async void OnNodeContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;
-        if (vm == null)
+        if (vm == null || NodeAt(e.Source) is not { } hit)
         {
             return;
         }
 
-        // A right-click can arrive as both a pointer release and a context request: show one menu.
-        if ((DateTime.UtcNow - this.lastNodeMenu).TotalMilliseconds < 400)
-        {
-            return;
-        }
-
-        this.lastNodeMenu = DateTime.UtcNow;
-        ContextMenu menu = new();
-
-        // A category (folder) has nothing to open or pin; it only offers its name.
-        if (!node.IsCategory)
-        {
-            MenuItem open = new() { Header = "Open" };
-            open.Click += (_, _) => vm.SelectedNode = node;
-            menu.Items.Add(open);
-        }
-
-        if (node.Table != null)
-        {
-            MenuItem pin = new() { Header = node.IsPinned ? "Unpin" : "Pin" };
-            pin.Click += (_, _) =>
-            {
-                bool pinned = !node.IsPinned;
-                vm.SelectedNode = node;
-                vm.SelectedPinned = pinned;
-            };
-            menu.Items.Add(pin);
-
-            MenuItem tag = new() { Header = "Tag as" };
-            foreach (string choice in TuneViewModel.TagChoices)
-            {
-                string value = choice;
-                MenuItem item = new() { Header = value == "(none)" ? "(remove tag)" : value };
-                item.Click += (_, _) =>
-                {
-                    vm.SelectedNode = node;
-                    vm.SelectedTag = value;
-                };
-                tag.Items.Add(item);
-            }
-
-            menu.Items.Add(tag);
-
-            MenuItem define = new() { Header = "Edit definition..." };
-            define.Click += async (_, _) => await this.ShowOverlayAsync(new DefinitionEditorView(vm, DefinitionDraft.From(node.Table)));
-            menu.Items.Add(define);
-        }
-
-        if (menu.Items.Count > 0)
-        {
-            menu.Items.Add(new Separator());
-        }
-
-        MenuItem copyName = new() { Header = "Copy name" };
-        copyName.Click += async (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
-            {
-                await clipboard.SetTextAsync(node.Name);
-            }
-        };
-        menu.Items.Add(copyName);
-
-        if (node.Table != null)
-        {
-            MenuItem copyAddress = new() { Header = "Copy address" };
-            copyAddress.Click += async (_, _) =>
+        e.Handled = true;
+        ParameterNode node = hit.Node;
+        await this.ShowOverlayAsync(new NodeMenuPage(
+            node,
+            vm,
+            async text =>
             {
                 if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
                 {
-                    await clipboard.SetTextAsync($"0x{node.Table.Address:X6}");
+                    await clipboard.SetTextAsync(text);
                 }
-            };
-            menu.Items.Add(copyAddress);
-        }
-
-        menu.Open(target);
+            },
+            () => node.Table == null
+                ? Task.CompletedTask
+                : this.ShowOverlayAsync(new DefinitionEditorView(vm, DefinitionDraft.From(node.Table)))));
     }
 
     private async void OnOpenProjectFolder(object? sender, RoutedEventArgs e)
