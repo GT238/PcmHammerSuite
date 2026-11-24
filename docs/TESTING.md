@@ -18,6 +18,8 @@ tested on real P01 files; P59 uses the same code but has had much less testing.
 1. Unzip anywhere and run `PcmSuiteTuner.exe`.
 2. Menu (the button at the top left), then **Projects...** to make a project for a vehicle, or **Add BIN...** to open one.
 3. Put your XDFs in `Documents\PcmSuite Projects\XDFs`. The Tuner picks the one whose file name carries the BIN's operating system number.
+   **Use unprotected XDFs.** Some XDFs (including many downloaded for TunerPro) are protected: the author has scrambled the file, so only TunerPro can
+   open it, and this program says it cannot. The BIN still opens without tables, but you need an unprotected copy of that XDF to edit it.
 4. Optional: put other BINs (factory files, a friend's tune) in `Documents\PcmSuite Projects\Reference BINs`.
 
 Your files are never uploaded or sent anywhere: the program has no code that contacts a server. A link in Help or Credits opens your web browser only if you click it.

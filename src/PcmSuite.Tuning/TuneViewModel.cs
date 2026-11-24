@@ -1442,7 +1442,8 @@ public partial class TuneViewModel : ObservableObject
         this.XdfPath = null;
         this.XdfName = "None readable";
         this.Status = $"Found {candidates.Count} XDF(s) for this BIN ({string.Join(", ", candidates.Select(Path.GetFileName).Take(3))}) " +
-                      "but none could be read; protected XDFs only open in TunerPro. Use Open XDF with an unprotected one.";
+                      "but none could be read. Protected XDFs (the author has scrambled the file) only open in TunerPro, and nothing outside it can read them. " +
+                      "Use Open XDF with an unprotected copy, or put one in " + ProjectInfo.XdfLibraryFolder + ". The BIN is open without tables.";
         await this.LoadBinOnlyAsync();
     }
 
@@ -1516,7 +1517,7 @@ public partial class TuneViewModel : ObservableObject
             this.XdfName = previousName;
             string reason = this.Status;
             this.Status = $"{Path.GetFileName(path)} was not opened. {reason} " +
-                          "(A protected XDF can only be opened in TunerPro.) " +
+                          "(A protected XDF is scrambled by its author, so only TunerPro can open it. Look for an unprotected copy of it.) " +
                           (previousPath != null ? "Still using " + previousName + "." : "Use an unprotected XDF.");
             return;
         }

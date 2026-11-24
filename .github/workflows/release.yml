@@ -35,6 +35,8 @@ jobs:
         run: |
           Copy-Item LICENSE publish/PcmSuiteTuner/LICENSE.txt
           Copy-Item docs/TESTING.md publish/PcmSuiteTuner/TESTING.txt
+          # The graphics libraries bring their own debug symbols (about 100 MB); testers do not need them.
+          Get-ChildItem publish/PcmSuiteTuner -Recurse -Filter *.pdb | Remove-Item
 
       - name: Zip
         shell: pwsh
