@@ -12,27 +12,9 @@ public sealed class CreditsView : UserControl
 {
     public CreditsView()
     {
-        string html = BuildHtml();
-        try
-        {
-            this.Content = new NativeWebView
-            {
-                Source = new Uri("data:text/html;charset=utf-8," + Uri.EscapeDataString(html)),
-            };
-        }
-        catch (Exception)
-        {
-            // No web view available: show the same text without formatting.
-            this.Content = new ScrollViewer
-            {
-                Content = new SelectableTextBlock
-                {
-                    Text = Regex.Replace(Regex.Replace(html, "<style.*?</style>", string.Empty, RegexOptions.Singleline), "<[^>]+>", string.Empty),
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                    Margin = new Thickness(16),
-                },
-            };
-        }
+        HtmlPageView page = new();
+        page.Show(BuildHtml(), "credits");
+        this.Content = page;
     }
 
     private static string BuildHtml()

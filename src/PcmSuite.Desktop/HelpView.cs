@@ -68,7 +68,7 @@ public sealed class HelpView : UserControl
     private readonly ListBox list = new() { MaxHeight = 280 };
     private readonly HelpSearch index = new();
     private IReadOnlyList<Entry> shown = Tasks;
-    private readonly ContentControl page = new();
+    private readonly HtmlPageView page = new();
     private bool showing;
     private string currentKey = "welcome";
     private string? currentAnchor;
@@ -208,26 +208,7 @@ public sealed class HelpView : UserControl
         this.currentAnchor = anchor;
         string file = Topics.First(t => t.Key == key).File;
         string html = Wrap(Read(Path.Combine(AppContext.BaseDirectory, "Help", file)), anchor);
-        try
-        {
-            this.page.Content = new NativeWebView
-            {
-                Source = new Uri("data:text/html;charset=utf-8," + Uri.EscapeDataString(html)),
-            };
-        }
-        catch (Exception)
-        {
-            // No web view available: show the text without formatting.
-            this.page.Content = new ScrollViewer
-            {
-                Content = new SelectableTextBlock
-                {
-                    Text = Regex.Replace(Regex.Replace(html, "<style.*?</style>", string.Empty, RegexOptions.Singleline), "<[^>]+>", string.Empty),
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                    Margin = new Thickness(16),
-                },
-            };
-        }
+        this.page.Show(html, key);
     }
 
     private static string Wrap(string document, string? anchor)

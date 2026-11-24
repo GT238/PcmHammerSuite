@@ -38,6 +38,7 @@
     <Compile Include="..\PcmSuite.Desktop\HelpView.cs" Link="HelpView.cs" />
     <Compile Include="..\PcmSuite.Desktop\CreditsView.cs" Link="CreditsView.cs" />
     <Compile Include="..\PcmSuite.Desktop\AboutView.cs" Link="AboutView.cs" />
+    <Compile Include="..\PcmSuite.Desktop\HtmlPageView.cs" Link="HtmlPageView.cs" />
     <Compile Include="..\PcmSuite.Desktop\LogsView.cs" Link="LogsView.cs" />
     <Compile Include="..\PcmSuite.Desktop\WebViewGuard.cs" Link="WebViewGuard.cs" />
     <Content Include="..\PcmSuite.Desktop\Help\*.html" Link="Help\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
