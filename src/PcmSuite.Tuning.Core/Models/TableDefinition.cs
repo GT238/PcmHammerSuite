@@ -89,6 +89,12 @@ namespace PcmSuite.Tuning.Core.Models
 
         public bool YLabelsAreReal { get; set; }
 
+        /// <summary>When set, the column headings are read from the BIN at this place instead of coming from <see cref="XLabels"/>.</summary>
+        public AxisSource? XAxis { get; set; }
+
+        /// <summary>When set, the row headings are read from the BIN at this place instead of coming from <see cref="YLabels"/>.</summary>
+        public AxisSource? YAxis { get; set; }
+
         /// <summary>The byte offset in the BIN of the cell at this row and column (the same rule reading and writing use).</summary>
         public int CellOffset(int row, int col)
         {
@@ -260,9 +266,13 @@ namespace PcmSuite.Tuning.Core.Models
         }
 
         public double ApplyScaling(double rawX,
+            Func<string, double>? crossRefResolver = null) => ScaleWith(this.ScalingEquation, rawX, crossRefResolver);
+
+        /// <summary>Applies an equation in X (as written in an XDF) to a stored number. Used for cell values and for axis values.</summary>
+        internal static double ScaleWith(string? equation, double rawX,
             Func<string, double>? crossRefResolver = null)
         {
-            string eq = ScalingEquation?.Trim() ?? "X";
+            string eq = equation?.Trim() ?? "X";
             if (string.IsNullOrEmpty(eq) || eq == "X" || eq == "x") return rawX;
 
             // Resolve cross-references:  ref:'some_name'  →  numeric value from BIN.

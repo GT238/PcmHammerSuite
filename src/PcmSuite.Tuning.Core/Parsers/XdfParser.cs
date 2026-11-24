@@ -633,6 +633,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 table.XUnits  = units ?? "";
                 table.XLabels = StripUnitPrefix(ParseLabels(xAxis), table.XUnits);
                 table.XLabelsAreReal = table.XLabels.Count > 0;
+                table.XAxis = ParseAxisSource(xAxis, embed, math, table.Columns);
 
                 // If no static labels, try to read count for placeholder labels
                 if (table.XLabels.Count == 0)
@@ -648,6 +649,7 @@ namespace PcmSuite.Tuning.Core.Parsers
                 table.YUnits  = units ?? "";
                 table.YLabels = StripUnitPrefix(ParseLabels(xAxis), table.YUnits);
                 table.YLabelsAreReal = table.YLabels.Count > 0;
+                table.YAxis = ParseAxisSource(xAxis, embed, math, table.Rows);
 
                 if (table.YLabels.Count == 0)
                 {
@@ -656,6 +658,46 @@ namespace PcmSuite.Tuning.Core.Parsers
                         for (int i = 1; i <= n; i++) table.YLabels.Add(i.ToString());
                 }
             }
+        }
+
+        /// <summary>
+        /// An axis whose values are stored in the BIN (the XDF gives the axis its own address), or null for an axis with fixed labels.
+        /// </summary>
+        private static AxisSource? ParseAxisSource(XElement xAxis, XElement? embed, string? math, int fallbackCount)
+        {
+            string? addr = embed?.Attribute("mmedaddress")?.Value;
+            if (string.IsNullOrEmpty(addr) || !TryParseHexUInt(addr, out uint address))
+                return null;
+
+            var source = new AxisSource { Address = address, ScalingEquation = NormalizeMath(math) };
+
+            string? bits = embed!.Attribute("mmedelementsizebits")?.Value;
+            if (bits != null && int.TryParse(bits, out int eb) && eb is 8 or 16 or 32) source.ElementBits = eb;
+
+            // A negative stride means "not used"; a positive one is the distance between values.
+            string? stride = embed.Attribute("mmedmajorstridebits")?.Value;
+            if (stride != null && int.TryParse(stride, out int sb) && sb > 0) source.StrideBits = sb;
+
+            string? typeFlags = embed.Attribute("mmedtypeflags")?.Value;
+            if (typeFlags != null)
+            {
+                try
+                {
+                    long flags = typeFlags.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                        ? Convert.ToInt64(typeFlags, 16) : long.Parse(typeFlags);
+                    source.IsSigned    = (flags & 0x01) != 0;
+                    source.IsBigEndian = (flags & 0x10) == 0;
+                }
+                catch { }
+            }
+
+            string? countStr = xAxis.Elements().FirstOrDefault(x => x.Name.LocalName == "indexcount")?.Value;
+            source.Count = countStr != null && int.TryParse(countStr, out int n) && n > 0 ? n : Math.Max(1, fallbackCount);
+
+            string? decStr = xAxis.Elements().FirstOrDefault(x => x.Name.LocalName == "decimalpl")?.Value;
+            if (decStr != null && int.TryParse(decStr, out int dp)) source.DecimalPlaces = dp;
+
+            return source;
         }
 
         private static List<string> ParseLabels(XElement xAxis)

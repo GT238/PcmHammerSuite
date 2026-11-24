@@ -58,7 +58,7 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     /// <summary>A single column of values with a trouble code on each row. The XDF gives its one column a placeholder label ("0.00"), which is not worth showing.</summary>
     public bool IsTroubleCodeList => this.Columns == 1 && this.Rows > 1 && DtcCatalog.IsCode(this.RowLabel(0));
 
-    public bool HasColumnLabels => !this.IsTroubleCodeList && (this.Columns > 1 || this.table.XLabels.Count > 0 && this.Rows > 1);
+    public bool HasColumnLabels => !this.IsTroubleCodeList && (this.Columns > 1 || (this.table.XLabels.Count > 0 || this.table.XAxis != null) && this.Rows > 1);
 
     public bool HasRowLabels => this.Rows > 1;
 
@@ -70,18 +70,21 @@ public sealed partial class ValueEditorViewModel : ObservableObject
     public IReadOnlyList<string> History => this.undoStack.AsEnumerable().Reverse().Take(30).Select(s => s.Label).ToList();
 
     /// <summary>False when the column labels are only the placeholders 1..N, not real axis values.</summary>
-    public bool ColumnLabelsAreReal => this.table.XLabelsAreReal;
+    public bool ColumnLabelsAreReal => this.table.XLabelsAreReal || this.table.XAxis != null;
 
-    public bool RowLabelsAreReal => this.table.YLabelsAreReal;
+    public bool RowLabelsAreReal => this.table.YLabelsAreReal || this.table.YAxis != null;
 
     public string XAxisTitle => this.table.XUnits;
 
     public string YAxisTitle => this.table.YUnits;
 
+    /// <summary>The column heading: read from the BIN when the table says where its axis is stored, otherwise the label written in the definition.</summary>
     public string ColumnLabel(int column) =>
+        this.table.XAxis != null && column < this.table.XAxis.Count ? this.table.XAxis.Label(this.bin, column, this.crossRef) :
         column < this.table.XLabels.Count ? this.table.XLabels[column] : (column + 1).ToString();
 
     public string RowLabel(int row) =>
+        this.table.YAxis != null && row < this.table.YAxis.Count ? this.table.YAxis.Label(this.bin, row, this.crossRef) :
         row < this.table.YLabels.Count ? this.table.YLabels[row] : (row + 1).ToString();
 
     public double Scaled(int row, int column) =>
