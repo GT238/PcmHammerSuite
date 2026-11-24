@@ -40,6 +40,10 @@ namespace PcmSuite.Tuning.Core.Models
             return path;
         }
 
+        /// <summary>True for a file this store wrote (its name ends with "- my definition", possibly numbered).</summary>
+        public static bool IsMine(string pathOrName) =>
+            Path.GetFileName(pathOrName).Contains(" - " + Suffix, StringComparison.OrdinalIgnoreCase);
+
         /// <summary>The path a new definition for this OS would get in the folder.</summary>
         public static string UniquePath(string folder, string osId)
         {

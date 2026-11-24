@@ -912,6 +912,22 @@ public partial class TuneView : UserControl
         }
     }
 
+    private async void OnNewTable(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null || vm.BinData == null)
+        {
+            if (vm != null)
+            {
+                vm.Status = "Open a BIN first, then a new table can be described for it.";
+            }
+
+            return;
+        }
+
+        await this.ShowOverlayAsync(new DefinitionEditorView(vm, DefinitionDraft.Blank(vm.SelectedNode?.Table?.Category ?? "Other")));
+    }
+
     private async void OnSaveDefinition(object? sender, RoutedEventArgs e)
     {
         if (this.ViewModel != null)
@@ -1315,6 +1331,10 @@ public partial class TuneView : UserControl
             }
 
             menu.Items.Add(tag);
+
+            MenuItem define = new() { Header = "Edit definition..." };
+            define.Click += async (_, _) => await this.ShowOverlayAsync(new DefinitionEditorView(vm, DefinitionDraft.From(node.Table)));
+            menu.Items.Add(define);
         }
 
         if (menu.Items.Count > 0)

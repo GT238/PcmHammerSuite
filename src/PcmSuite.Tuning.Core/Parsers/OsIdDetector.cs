@@ -63,20 +63,24 @@ namespace PcmSuite.Tuning.Core.Parsers
             var allIds = ScanForOsIds(bin).ToList();
             if (allIds.Count == 0) return Array.Empty<string>();
 
-            var matches = new List<(string Name, int Score)>();
+            var matches = new List<(string Name, int Score, bool Mine, DateTime Written)>();
             foreach (var xdf in Directory.GetFiles(xdfFolder, "*.xdf"))
             {
                 string fname = Path.GetFileName(xdf);
                 foreach (string id in allIds)
                 {
                     if (!fname.Contains(id, StringComparison.OrdinalIgnoreCase)) continue;
-                    matches.Add((fname, CountOccurrences(bin, id)));
+                    // A definition the user saved from the Tuner (see DefinitionStore) beats the XDF it was made from.
+                    bool mine = PcmSuite.Tuning.Core.Models.DefinitionStore.IsMine(fname);
+                    matches.Add((fname, CountOccurrences(bin, id), mine, mine ? File.GetLastWriteTimeUtc(xdf) : DateTime.MinValue));
                     break;
                 }
             }
 
             return matches
                 .OrderByDescending(m => m.Score)
+                .ThenByDescending(m => m.Mine)
+                .ThenByDescending(m => m.Written)
                 .ThenBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(m => m.Name)
                 .ToList();

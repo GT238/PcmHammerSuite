@@ -16,7 +16,7 @@ public sealed partial class EditorTab : ObservableObject
     }
 
     /// <summary>The tree entry that opened it (used to put the selection back when the tab is chosen).</summary>
-    public ParameterNode Node { get; }
+    public ParameterNode Node { get; internal set; }
 
     public TableDefinition Table { get; }
 

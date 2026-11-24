@@ -268,6 +268,43 @@ namespace PcmSuite.Tuning.Core.Models
         public double ApplyScaling(double rawX,
             Func<string, double>? crossRefResolver = null) => ScaleWith(this.ScalingEquation, rawX, crossRefResolver);
 
+        /// <summary>
+        /// Whether an equation can be evaluated: false, with the reason, when it cannot be parsed or gives no usable number.
+        /// (Showing a table never fails on a bad equation, it just shows the stored numbers, so this is for catching mistakes while one is typed.)
+        /// References to other tables (ref:'name') count as 1 here.
+        /// </summary>
+        public static bool CheckEquation(string? equation, out string error)
+        {
+            error = string.Empty;
+            string eq = equation?.Trim() ?? string.Empty;
+            if (eq.Length == 0)
+            {
+                return true;
+            }
+
+            string safe = Regex.Replace(eq, @"(?<![A-Za-z0-9_])(?:ref|table)\s*:\s*'[^']*'", "1.0", RegexOptions.IgnoreCase);
+            try
+            {
+                Func<double, double, double> f = new Interpreter().ParseAsDelegate<Func<double, double, double>>(safe, "X", "x");
+                foreach (double probe in new[] { 0.0, 1.0, 100.0 })
+                {
+                    double v = f(probe, probe);
+                    if (double.IsNaN(v) && probe != 0.0)
+                    {
+                        error = "it gives no number for a stored value of " + probe.ToString(CultureInfo.InvariantCulture);
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         /// <summary>Applies an equation in X (as written in an XDF) to a stored number. Used for cell values and for axis values.</summary>
         internal static double ScaleWith(string? equation, double rawX,
             Func<string, double>? crossRefResolver = null)

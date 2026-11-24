@@ -39,6 +39,7 @@ public partial class TuneViewModel : ObservableObject
     [ObservableProperty] private string _referenceName = string.Empty;
 
     private List<ParameterNode> allCategories = new();
+    private List<PatchDefinition> loadedPatches = new();
     private Dictionary<string, TableDefinition> tablesByName = new(StringComparer.OrdinalIgnoreCase);
 
     public ObservableCollection<ParameterNode> Categories { get; } = new();
@@ -1331,6 +1332,7 @@ public partial class TuneViewModel : ObservableObject
         this.Patch = null;
         this.patchViewModels = new Dictionary<PatchDefinition, PatchViewModel>();
         this.allCategories = new List<ParameterNode>();
+        this.loadedPatches = new List<PatchDefinition>();
         this.Categories.Clear();
         this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
         this.BinData = null;
@@ -1502,6 +1504,84 @@ public partial class TuneViewModel : ObservableObject
         }
 
         await this.OpenBinAsync(this.BinPath);
+    }
+
+    /// <summary>The numbers a table would show with these settings, for the definition editor's preview. Null when no BIN is open.</summary>
+    public ValueEditorViewModel? PreviewEditor(TableDefinition table) =>
+        this.BinData == null ? null : new ValueEditorViewModel(table, this.BinData, this.ResolveTableReference);
+
+    /// <summary>
+    /// Put an edited (or new, when <paramref name="original"/> is null) table definition into the loaded set and show it.
+    /// Only this session's copy changes: the XDF it came from is never touched. "Save as my definition" keeps the result.
+    /// </summary>
+    public void ApplyDefinition(TableDefinition? original, TableDefinition edited)
+    {
+        if (this.BinData == null)
+        {
+            return;
+        }
+
+        List<TableDefinition> list = this.tablesByName.Values.ToList();
+        int at = original == null ? -1 : list.IndexOf(original);
+        if (at >= 0)
+        {
+            list[at] = edited;
+        }
+        else
+        {
+            list.Add(edited);
+        }
+
+        // A table that was renamed keeps the equations that point at it working.
+        if (original != null && !string.Equals(original.Name, edited.Name, StringComparison.Ordinal))
+        {
+            string pattern = @"(?<![A-Za-z0-9_])(ref|table)(\s*:\s*)'" + System.Text.RegularExpressions.Regex.Escape(original.Name) + "'";
+            foreach (TableDefinition t in list)
+            {
+                t.ScalingEquation = System.Text.RegularExpressions.Regex.Replace(t.ScalingEquation, pattern,
+                    m => m.Groups[1].Value + m.Groups[2].Value + "'" + edited.Name + "'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+        }
+
+        foreach (EditorTab tab in this.OpenTabs.Where(t => original != null && ReferenceEquals(t.Table, original)).ToList())
+        {
+            this.CloseTab(tab);
+        }
+
+        this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (TableDefinition t in list)
+        {
+            this.tablesByName[t.Name] = t;
+        }
+
+        this.allCategories = BuildTree(list, this.loadedPatches);
+        this.ApplyMeta();
+        this.ApplyFilter(this.SearchText);
+
+        // The tabs that stay open point at the new tree.
+        List<ParameterNode> leaves = this.AllLeaves().Where(l => l.Table != null).ToList();
+        foreach (EditorTab tab in this.OpenTabs)
+        {
+            ParameterNode? leaf = leaves.FirstOrDefault(l => ReferenceEquals(l.Table, tab.Table));
+            if (leaf != null)
+            {
+                tab.Node = leaf;
+            }
+        }
+
+        if (this.ReferenceData != null)
+        {
+            _ = this.RecomputeChangesAsync();
+        }
+
+        ParameterNode? shown = leaves.FirstOrDefault(l => ReferenceEquals(l.Table, edited));
+        if (shown != null)
+        {
+            this.SelectedNode = shown;
+        }
+
+        this.Status = (original == null ? "Added " : "Changed ") + edited.Name + " in this session's definition. " +
+                      "Use Save as my definition to keep it; the XDF you opened is not changed.";
     }
 
     /// <summary>
@@ -1682,6 +1762,7 @@ public partial class TuneViewModel : ObservableObject
                 this.tablesByName[table.Name] = table;
             }
 
+            this.loadedPatches = patches;
             this.allCategories = BuildTree(tables, patches);
             this.ApplyMeta();
             this.ApplyFilter(this.SearchText);
@@ -1724,7 +1805,11 @@ public partial class TuneViewModel : ObservableObject
             // Treated as "none found".
         }
 
-        return found;
+        // The Tuner's own definitions (newest first) go ahead of the XDFs they were made from, wherever those are; the rest keep their order.
+        return found
+            .OrderByDescending(DefinitionStore.IsMine)
+            .ThenByDescending(f => DefinitionStore.IsMine(f) ? File.GetLastWriteTimeUtc(f) : DateTime.MinValue)
+            .ToList();
     });
 
     private static List<ParameterNode> BuildTree(List<TableDefinition> tables, List<PatchDefinition> patches)
