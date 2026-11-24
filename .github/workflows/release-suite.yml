@@ -1,0 +1,56 @@
+name: Release (full suite)
+
+# Pushing a tag such as suite-v0.1.1-prototype builds the full suite (Flash, Logger, Tuner) for Windows and attaches it to a GitHub pre-release.
+# The standalone Tuner has its own workflow, which runs on tags that start with v.
+on:
+  push:
+    tags: [ 'suite-v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  suite-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with the PcmHammer submodule)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Test
+        run: dotnet test tests/PcmSuite.Tests --configuration Release
+
+      # Self-contained, so nothing needs installing. The runtime is chosen inside the project (SelfContainedWin), not with -r, because
+      # -r would also reach PCM Hammer's Android-targeting projects and fail. Debug symbols are left out to keep the download small.
+      - name: Publish the suite
+        run: dotnet publish src/PcmSuite.Desktop --configuration Release -p:SelfContainedWin=true -p:DebugType=none -p:DebugSymbols=false -o publish/PcmSuite
+
+      - name: Add the licence and the guide
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE publish/PcmSuite/LICENSE.txt
+          Copy-Item docs/SUITE-TESTING.md publish/PcmSuite/SUITE-TESTING.txt
+          Get-ChildItem publish/PcmSuite -Recurse -Filter *.pdb | Remove-Item
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/PcmSuite/* -DestinationPath "PcmSuite-${{ github.ref_name }}-win-x64.zip"
+
+      - name: Create the pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PcmSuite-${{ github.ref_name }}-win-x64.zip
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            Prototype of the full suite for Windows: PCM Hammer's own Flash and Logger screens, unmodified, plus the new Tuner, in one window.
+            **For PCM Hammer's maintainers and developers.** It can talk to a PCM, so read `SUITE-TESTING.txt` in the zip first.
+            The PCM-side kernel files are NOT included: copy the `Kernel-*.bin` files from an official PCM Hammer release next to `PcmSuite.exe`.
+            Unzip and run `PcmSuite.exe`. Source: this repository, at the commit this tag points to.

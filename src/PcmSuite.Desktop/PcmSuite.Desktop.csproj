@@ -11,6 +11,13 @@
     <ApplicationIcon>..\..\assets\PcmSuite.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- For the self-contained Windows download: dotnet publish -p:SelfContainedWin=true. The runtime is chosen here, in the project, and not with
+       -r on the command line, because -r would also be applied to PCM Hammer's projects that target Android, and that fails. -->
+  <PropertyGroup Condition="'$(SelfContainedWin)' == 'true'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
   <!-- Window and taskbar icon (the same artwork as the exe icon). -->
   <ItemGroup>
     <AvaloniaResource Include="..\..\assets\PcmSuite.ico" Link="Assets\PcmSuite.ico" />
