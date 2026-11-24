@@ -20,6 +20,7 @@
     <li><a target="_self" href="#adapter">One adapter at a time</a></li>
     <li><a target="_self" href="#kernels">Kernel files</a></li>
     <li><a target="_self" href="#safety">Before you flash</a></li>
+    <li><a target="_self" href="#problems">Reporting a problem</a></li>
 </ol>
 
 <h3 id="tabs">What each tab does</h3>
@@ -27,8 +28,10 @@
     <li><b>Flash</b> - connect to the PCM, read its contents to a BIN file, write a BIN back, verify.</li>
     <li><b>Logger</b> - choose the parameters to watch, see them live, and record them to a CSV file.</li>
     <li><b>Tuner</b> - open a BIN with its XDF, edit tables, compare with another BIN, correct the checksums and save.</li>
+    <li><b>Logs</b> - the crash logs the program left behind: read one, copy it, delete it.</li>
     <li><b>Help</b> - this page, PCM Hammer's help for Flash and Logger, and the Tuner manual.</li>
     <li><b>Credits</b> - who made what.</li>
+    <li><b>About</b> - which build you are running, and a button that copies the details for a bug report.</li>
 </ul>
 
 <h3 id="workflow">A typical session</h3>
@@ -49,7 +52,7 @@
 <p>
     Only one tab can use the adapter at a time. Leaving the Flash tab releases the adapter. The Logger stays connected when
     you move between the Logger, the Tuner and Help, so the Tuner's <b>Live</b> trace can follow the engine; going to
-    Flash or Credits disconnects it. Flash operations that are running (read, write, verify) cannot be interrupted by
+    Flash, Logs, About or Credits disconnects it. Flash operations that are running (read, write, verify) cannot be interrupted by
     switching tabs: wait for them to finish or cancel them first.
 </p>
 
@@ -67,3 +70,13 @@
     <li>Use a stable power supply (a battery charger) for the whole write, and do not interrupt it.</li>
     <li>This is a prototype. Edits are suggestions you are responsible for; nothing here can know whether a tune is safe for your engine.</li>
 </ul>
+
+<h3 id="problems">Reporting a problem</h3>
+<p>
+    Open the <b>About</b> tab and press <b>Copy details for a bug report</b>. It copies the version, the PcmSuite and PCM Hammer builds
+    (commits), and your system, so paste it into your message and say what you were doing.
+</p>
+<p>
+    If the program closes by itself, it leaves a <b>crash log</b>. The <b>Logs</b> tab lists them: pick one to read exactly what it holds,
+    press <b>Copy</b> and paste it into your message (or <b>Open folder</b> to attach the file). You can delete a log you no longer need. A crash log holds the error, where in the program it happened and the build details. It can include file paths (and so your Windows user name), but never the contents of your BIN files.
+</p>

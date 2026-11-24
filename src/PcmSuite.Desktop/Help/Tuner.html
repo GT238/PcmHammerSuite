@@ -80,8 +80,8 @@
     <li>On a narrow window (or a phone) the three areas become pages with buttons at the bottom.</li>
 </ul>
 <p>
-    The menu has sections for <b>Project</b>, <b>Files</b> (Open XDF, Auto-detect, recent BINs), <b>Tools</b> (Swap segments, Logging profiles, VE wizard, Log map, Compare workbench, Hex view),
-    <b>Records</b> (Open change log, Export notes) and <b>Checks</b> (Check checksums, Compare with BIN).
+    The menu has sections for <b>Project</b>, <b>Files</b> (Open Reference BINs folder, Open XDF, Auto-detect, recent BINs), <b>Tools</b> (Swap segments, Logging profiles, VE wizard, Log map, Compare workbench, Hex view),
+    <b>Records</b> (Open change log, Export notes) and <b>Checks</b> (Check checksums, Compare with: a matching BIN, Compare with BIN).
 </p>
 
 <h3 id="grid">Editing a table</h3>
@@ -156,6 +156,13 @@
     so you see them at once; untick the box to see every table again.
     Inside a project, every BIN of the project is compared with the project's base automatically. A BIN you open with "Just open it" from outside the project is not.
     <b>Stop comparing</b> turns it off.
+</p>
+<p id="reference">
+    <b>Reference BINs.</b> <b>Open Reference BINs folder</b> (menu, Files) opens a shared folder, next to your projects and the XDF library, for reference
+    BINs, such as a file a friend sent or a read from another car. Put them there once. Every compare dialog (Compare with BIN, the workbench, the hex view and
+    segment swap) opens in that folder when it holds any BINs. When you open a BIN, the Tuner also looks there for a file of the same size with the same
+    GM part numbers (OS IDs) as the open one; if it finds one, <b>Compare with: &lt;file&gt;</b> appears under Checks and compares with a single click. The folder is yours to fill, so the file is not guaranteed to be a factory BIN: check its name.
+    A file identical to the open BIN, or the open BIN itself, is not offered. Folders inside Reference BINs are searched too.
 </p>
 <p>
     <b>Which compare do I use?</b> The comparison stays switched on while you work, so you can keep editing with the differences showing:

@@ -1,0 +1,53 @@
+<Project>
+  <!--
+    Stamps each app with its version and the git commits it was built from (PcmSuite and the PCM Hammer submodule), so a bug report
+    can say exactly which build ran. Import this from an app project. If git is missing or the sources are a plain download,
+    the commits read "unknown" and the build carries on.
+  -->
+  <PropertyGroup>
+    <PcmSuiteVersion>0.1.0</PcmSuiteVersion>
+    <Version>$(PcmSuiteVersion)</Version>
+  </PropertyGroup>
+
+  <Target Name="PcmSuiteGitInfo" BeforeTargets="GetAssemblyAttributes">
+    <PropertyGroup>
+      <_SuiteRoot>$(MSBuildThisFileDirectory)..</_SuiteRoot>
+    </PropertyGroup>
+
+    <Exec Command="git -C &quot;$(_SuiteRoot)&quot; rev-parse --short=8 HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_SuiteCommitRaw" />
+    </Exec>
+    <Exec Command="git -C &quot;$(_SuiteRoot)&quot; status --porcelain --untracked-files=no" ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_SuiteStatusRaw" />
+    </Exec>
+    <Exec Command="git -C &quot;$(_SuiteRoot)/extern/PcmHammer&quot; rev-parse --short=8 HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_HammerCommitRaw" />
+    </Exec>
+
+    <PropertyGroup>
+      <_SuiteCommit Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_SuiteCommitRaw)', '^[0-9a-f]{7,40}$'))">$(_SuiteCommitRaw)</_SuiteCommit>
+      <_SuiteCommit Condition="'$(_SuiteCommit)' == ''">unknown</_SuiteCommit>
+      <_SuiteCommit Condition="'$(_SuiteCommit)' != 'unknown' And '$(_SuiteStatusRaw)' != ''">$(_SuiteCommit)+changes</_SuiteCommit>
+      <_HammerCommit Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_HammerCommitRaw)', '^[0-9a-f]{7,40}$'))">$(_HammerCommitRaw)</_HammerCommit>
+      <_HammerCommit Condition="'$(_HammerCommit)' == ''">unknown</_HammerCommit>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>PcmSuiteVersion</_Parameter1>
+        <_Parameter2>$(PcmSuiteVersion)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>PcmSuiteCommit</_Parameter1>
+        <_Parameter2>$(_SuiteCommit)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>PcmHammerCommit</_Parameter1>
+        <_Parameter2>$(_HammerCommit)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+</Project>

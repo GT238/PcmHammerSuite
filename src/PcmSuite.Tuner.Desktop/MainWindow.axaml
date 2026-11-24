@@ -20,8 +20,10 @@
                 </TabItem.Header>
                 <ContentControl x:Name="TuneHost"/>
             </TabItem>
+            <TabItem Header="Logs"><ContentControl x:Name="LogsHost"/></TabItem>
             <TabItem Header="Help"><ContentControl x:Name="HelpHost"/></TabItem>
             <TabItem Header="Credits"><ContentControl x:Name="CreditsHost"/></TabItem>
+            <TabItem Header="About"><ContentControl x:Name="AboutHost"/></TabItem>
         </TabControl>
     </DockPanel>
 </Window>

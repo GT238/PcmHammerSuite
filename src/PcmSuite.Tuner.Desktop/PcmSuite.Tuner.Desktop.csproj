@@ -37,8 +37,14 @@
   <ItemGroup>
     <Compile Include="..\PcmSuite.Desktop\HelpView.cs" Link="HelpView.cs" />
     <Compile Include="..\PcmSuite.Desktop\CreditsView.cs" Link="CreditsView.cs" />
+    <Compile Include="..\PcmSuite.Desktop\AboutView.cs" Link="AboutView.cs" />
+    <Compile Include="..\PcmSuite.Desktop\LogsView.cs" Link="LogsView.cs" />
+    <Compile Include="..\PcmSuite.Desktop\WebViewGuard.cs" Link="WebViewGuard.cs" />
     <Content Include="..\PcmSuite.Desktop\Help\*.html" Link="Help\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\PcmSuite.Desktop\Credits\PcmSuite-credits.html" Link="Credits\PcmSuite-credits.html" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\PcmSuite.Desktop\Profiles\*.LogProfile" Link="Profiles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Version and git commits stamped into the build (shown on the About tab and in crash logs). -->
+  <Import Project="..\..\build\BuildInfo.targets" />
 </Project>

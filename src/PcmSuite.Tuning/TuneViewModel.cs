@@ -19,7 +19,16 @@ public partial class TuneViewModel : ObservableObject
     [ObservableProperty] private ParameterNode? _selectedNode;
     [ObservableProperty] private ValueEditorViewModel? _editor;
     [ObservableProperty] private bool _isDirty;
-    [ObservableProperty] private bool _isComparing;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOfferStock))]
+    private bool _isComparing;
+
+    // A BIN found in the shared Reference BINs folder with the same part numbers as the open one.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOfferStock))]
+    [NotifyPropertyChangedFor(nameof(StockBinLabel))]
+    private string? _stockBinPath;
+
     [ObservableProperty] private bool _changedOnly;
     [ObservableProperty] private bool _showSurface;
     [ObservableProperty] private bool _hasSelectedTable;
@@ -1325,6 +1334,7 @@ public partial class TuneViewModel : ObservableObject
         this.Categories.Clear();
         this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
         this.BinData = null;
+        this.StockBinPath = null;
         this.IsBinOnly = false;
         this.ReferenceData = null;
         this.ReferenceName = string.Empty;
@@ -1338,7 +1348,53 @@ public partial class TuneViewModel : ObservableObject
         this.ReadyToFlashPath = null;
     }
 
+    /// <summary>True while a matching BIN is known and nothing is being compared (the menu then offers "Compare with: <file>").</summary>
+    public bool CanOfferStock => this.StockBinPath != null && !this.IsComparing;
+
+    public string StockBinLabel => "Compare with: " + Path.GetFileName(this.StockBinPath);
+
+    /// <summary>Compare the open BIN with the BIN that was found for it in the Reference BINs folder.</summary>
+    public async Task CompareToStockAsync()
+    {
+        if (this.StockBinPath is { } path)
+        {
+            await this.CompareAsync(path);
+        }
+    }
+
+    /// <summary>Look in the Reference BINs folder for a file with the same part numbers as the open BIN.</summary>
+    private async Task FindStockBinAsync(string path)
+    {
+        string? match = null;
+        try
+        {
+            match = await Task.Run(() => StockBins.FindMatch(File.ReadAllBytes(path), path, StockBins.Folder));
+        }
+        catch (Exception)
+        {
+            // No suggestion is not an error.
+        }
+
+        // The user may have opened something else while this ran.
+        if (!string.Equals(this.BinPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        this.StockBinPath = match;
+        if (match != null && !this.IsComparing)
+        {
+            this.Status += $" A BIN with the same part numbers is in your Reference BINs folder: {Path.GetFileName(match)} (menu, Checks, Compare with).";
+        }
+    }
+
     public async Task OpenBinAsync(string path)
+    {
+        await this.OpenBinCoreAsync(path);
+        await this.FindStockBinAsync(path);
+    }
+
+    private async Task OpenBinCoreAsync(string path)
     {
         this.ResetLoadedState();
         this.RememberRecent(path);

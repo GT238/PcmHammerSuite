@@ -63,4 +63,7 @@
     <ProjectReference Include="..\PcmSuite.Tuning\PcmSuite.Tuning.csproj" />
     <ProjectReference Include="..\PcmSuite.Tuning.Views\PcmSuite.Tuning.Views.csproj" />
   </ItemGroup>
+
+  <!-- Version and git commits stamped into the build (shown on the About tab and in crash logs). -->
+  <Import Project="..\..\build\BuildInfo.targets" />
 </Project>

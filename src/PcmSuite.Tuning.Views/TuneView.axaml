@@ -56,6 +56,8 @@
                                 ToolTip.Tip="Show this project's folder in your file manager. To switch to another project, use Projects... above."/>
 
                         <TextBlock Text="Files" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"/>
+                        <Button Content="Open Reference BINs folder" Click="OnOpenStockFolder" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="Keep factory (stock) BINs here. Compare starts in this folder, and a BIN you open is matched to a file here by its part numbers."/>
                         <Button Content="Open XDF..." Click="OnOpenXdf" HorizontalAlignment="Stretch"/>
                         <Button Content="Auto-detect XDF" Click="OnAutoXdf" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Forget a manually chosen XDF and pick one from the OS ID of the BIN"/>
@@ -98,6 +100,10 @@
                         <TextBlock Text="Checks" FontWeight="SemiBold" Opacity="0.7" Margin="0,10,0,0"/>
                         <Button Content="Check checksums" Click="OnCheckChecksums" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Check the BIN, including unsaved edits, with PCMHammer's own validator"/>
+                        <Button Click="OnCompareStock" HorizontalAlignment="Stretch" IsVisible="{Binding CanOfferStock}"
+                                ToolTip.Tip="A BIN in your Reference BINs folder has the same part numbers as the open one. It may not be a factory file, so check the name.">
+                            <TextBlock Text="{Binding StockBinLabel}" TextWrapping="Wrap"/>
+                        </Button>
                         <Button Content="Compare with BIN..." Click="OnCompare" HorizontalAlignment="Stretch"
                                 IsVisible="{Binding !IsComparing}"
                                 ToolTip.Tip="Mark every table and cell that differs from another BIN, such as the stock file"/>
@@ -124,7 +130,8 @@
                         <TreeView Grid.Row="2" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedNode}">
                             <TreeView.ItemTemplate>
                                 <TreeDataTemplate DataType="core:ParameterNode" ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" MinHeight="30">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" MinHeight="30" Background="Transparent"
+                                                ContextRequested="OnNodeContextRequested">
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                                         <TextBlock Text="●" Foreground="Orange" VerticalAlignment="Center"
                                                    IsVisible="{Binding HasChanges}"/>

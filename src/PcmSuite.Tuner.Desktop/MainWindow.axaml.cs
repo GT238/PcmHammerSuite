@@ -9,7 +9,7 @@ namespace PcmSuite;
 public partial class MainWindow : Window
 {
     private const int TuneTab = 0;
-    private const int HelpTab = 1;
+    private const int HelpTab = 2;
 
     private readonly HelpView helpView;
     private readonly Tune.TuneViewModel tune;
@@ -76,6 +76,8 @@ public partial class MainWindow : Window
         this.TuneHost.Content = this.tuneView;
         this.helpView = new HelpView();
         this.HelpHost.Content = this.helpView;
+        this.LogsHost.Content = new LogsView();
+        this.AboutHost.Content = new AboutView("PcmSuiteTuner");
         this.CreditsHost.Content = new CreditsView();
 
         this.Tabs.SelectionChanged += (_, e) =>

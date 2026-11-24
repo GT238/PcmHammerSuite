@@ -37,6 +37,7 @@ public partial class SegmentSwapView : OverlayPage
         {
             Title = "Choose the donor BIN",
             AllowMultiple = false,
+            SuggestedStartLocation = await PickerStart.StockBinsAsync(top),
             FileTypeFilter = new[] { new FilePickerFileType("BIN files") { Patterns = new[] { "*.bin", "*.BIN" } } },
         });
 

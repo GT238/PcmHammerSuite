@@ -12,7 +12,7 @@ public partial class MainWindow : Window
     private const int FlashTab = 0;
     private const int LoggerTab = 1;
     private const int TuneTab = 2;
-    private const int HelpTab = 3;
+    private const int HelpTab = 4;
 
     private readonly PCMHammerAvalonia.ViewModels.MainWindowViewModel flash = new();
     private readonly PCMLoggerAvalonia.ViewModels.MainWindowViewModel logger = new();
@@ -94,6 +94,8 @@ public partial class MainWindow : Window
         this.TuneHost.Content = this.tuneView;
         this.helpView = new HelpView();
         this.HelpHost.Content = this.helpView;
+        this.LogsHost.Content = new LogsView();
+        this.AboutHost.Content = new AboutView("PcmSuite");
         this.CreditsHost.Content = new CreditsView();
 
         // "?" in the Tuner: open the Help tab at the right topic and section.

@@ -914,10 +914,36 @@ public partial class TuneView : UserControl
 
     private async void OnCompare(object? sender, RoutedEventArgs e)
     {
-        string? path = await this.PickFileAsync("Pick the reference BIN (for example the stock file)", "BIN files", "*.bin", "*.BIN");
+        string? path = await this.PickFileAsync("Pick the reference BIN (for example the stock file)", "BIN files", preferStock: true, "*.bin", "*.BIN");
         if (path != null && this.ViewModel != null)
         {
             await this.ViewModel.CompareAsync(path);
+        }
+    }
+
+    private async void OnCompareStock(object? sender, RoutedEventArgs e)
+    {
+        if (this.ViewModel != null)
+        {
+            await this.ViewModel.CompareToStockAsync();
+        }
+    }
+
+    private async void OnOpenStockFolder(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(StockBins.Folder);
+            await top.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(StockBins.Folder));
+        }
+        catch (Exception ex)
+        {
+            this.ViewModel!.Status = "Could not open the Reference BINs folder: " + ex.Message;
         }
     }
 
@@ -1236,6 +1262,84 @@ public partial class TuneView : UserControl
         await this.ShowOverlayAsync(page);
     }
 
+    /// <summary>Right-click on a table in the list: open, pin, tag, and copy its name or address.</summary>
+    private void OnNodeContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null || sender is not Control target || target.DataContext is not ParameterNode node)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ContextMenu menu = new();
+
+        // A category (folder) has nothing to open or pin; it only offers its name.
+        if (!node.IsCategory)
+        {
+            MenuItem open = new() { Header = "Open" };
+            open.Click += (_, _) => vm.SelectedNode = node;
+            menu.Items.Add(open);
+        }
+
+        if (node.Table != null)
+        {
+            MenuItem pin = new() { Header = node.IsPinned ? "Unpin" : "Pin" };
+            pin.Click += (_, _) =>
+            {
+                bool pinned = !node.IsPinned;
+                vm.SelectedNode = node;
+                vm.SelectedPinned = pinned;
+            };
+            menu.Items.Add(pin);
+
+            MenuItem tag = new() { Header = "Tag as" };
+            foreach (string choice in TuneViewModel.TagChoices)
+            {
+                string value = choice;
+                MenuItem item = new() { Header = value == "(none)" ? "(remove tag)" : value };
+                item.Click += (_, _) =>
+                {
+                    vm.SelectedNode = node;
+                    vm.SelectedTag = value;
+                };
+                tag.Items.Add(item);
+            }
+
+            menu.Items.Add(tag);
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            menu.Items.Add(new Separator());
+        }
+
+        MenuItem copyName = new() { Header = "Copy name" };
+        copyName.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(node.Name);
+            }
+        };
+        menu.Items.Add(copyName);
+
+        if (node.Table != null)
+        {
+            MenuItem copyAddress = new() { Header = "Copy address" };
+            copyAddress.Click += async (_, _) =>
+            {
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                {
+                    await clipboard.SetTextAsync($"0x{node.Table.Address:X6}");
+                }
+            };
+            menu.Items.Add(copyAddress);
+        }
+
+        menu.Open(target);
+    }
+
     private async void OnOpenProjectFolder(object? sender, RoutedEventArgs e)
     {
         string? folder = this.ViewModel?.CurrentProject?.ProjectFolder;
@@ -1455,7 +1559,11 @@ public partial class TuneView : UserControl
         }
     }
 
-    private async Task<string?> PickFileAsync(string title, string typeName, params string[] patterns)
+    private async Task<string?> PickFileAsync(string title, string typeName, params string[] patterns) =>
+        await this.PickFileAsync(title, typeName, false, patterns);
+
+    /// <summary>With preferStock, BIN pickers open in the Reference BINs folder when it holds any BINs.</summary>
+    private async Task<string?> PickFileAsync(string title, string typeName, bool preferStock, params string[] patterns)
     {
         TopLevel? top = TopLevel.GetTopLevel(this);
         if (top == null)
@@ -1464,9 +1572,11 @@ public partial class TuneView : UserControl
         }
 
         string? folder = typeName == "BIN files" ? this.ViewModel?.LastFolder : null;
-        IStorageFolder? start = folder != null && Directory.Exists(folder)
-            ? await top.StorageProvider.TryGetFolderFromPathAsync(folder)
-            : null;
+        IStorageFolder? start = preferStock && typeName == "BIN files"
+            ? await PickerStart.StockBinsAsync(top, folder)
+            : folder != null && Directory.Exists(folder)
+                ? await top.StorageProvider.TryGetFolderFromPathAsync(folder)
+                : null;
 
         IReadOnlyList<IStorageFile> files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {

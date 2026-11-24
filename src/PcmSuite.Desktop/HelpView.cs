@@ -36,6 +36,7 @@ public sealed class HelpView : UserControl
         new("Edit a table", "Select cells, type values, nudge, fill, scale, interpolate, smooth", "tuner", "grid"),
         new("Undo or redo a change", "Undo, redo and the history list", "tuner", "undo"),
         new("See what I have changed compared with stock", "Compare with the base BIN", "tuner", "compare"),
+        new("Keep reference BINs (factory files and others) in one place and compare with them quickly", "The Reference BINs folder and Compare with: a matching BIN", "tuner", "reference"),
         new("See which tables another tune changed, and copy them into mine", "The compare workbench", "tuner", "workbench"),
         new("Look at the BIN byte by byte", "The hex view: go to an address, search, see differences", "tuner", "hex"),
         new("See where a logged drive went on a table", "The log map", "tuner", "log-map"),

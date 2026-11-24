@@ -5,7 +5,11 @@ namespace PcmSuite;
 
 public partial class App : global::Avalonia.Application
 {
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        WebViewGuard.Install("PcmSuite");
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

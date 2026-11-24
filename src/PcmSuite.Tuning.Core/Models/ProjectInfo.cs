@@ -243,6 +243,10 @@ namespace PcmSuite.Tuning.Core.Models
         public static string XdfLibraryFolder =>
             Path.Combine(DefaultProjectsRoot, "XDFs");
 
+        /// <summary>Shared folder of reference BINs (factory files and others), for comparing against. See <see cref="StockBins"/>.</summary>
+        public static string StockBinsFolder =>
+            Path.Combine(DefaultProjectsRoot, "Reference BINs");
+
         /// <summary>
         /// First run after the rename: copy the old LS-Studio folder to the new one. The old folder is left alone, so
         /// LS-Studio keeps working. Returns true when something was copied.

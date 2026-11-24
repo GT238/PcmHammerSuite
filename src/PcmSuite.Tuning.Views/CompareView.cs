@@ -102,6 +102,7 @@ public sealed class CompareView : OverlayPage
         {
             Title = "Choose the BIN to compare with",
             AllowMultiple = false,
+            SuggestedStartLocation = await PickerStart.StockBinsAsync(top),
             FileTypeFilter = new[] { new FilePickerFileType("BIN files") { Patterns = new[] { "*.bin", "*.BIN" } } },
         });
 
