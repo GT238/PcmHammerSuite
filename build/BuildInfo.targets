@@ -5,7 +5,7 @@
     the commits read "unknown" and the build carries on.
   -->
   <PropertyGroup>
-    <PcmSuiteVersion>0.1.0</PcmSuiteVersion>
+    <PcmSuiteVersion>0.1.1</PcmSuiteVersion>
     <Version>$(PcmSuiteVersion)</Version>
   </PropertyGroup>
 
