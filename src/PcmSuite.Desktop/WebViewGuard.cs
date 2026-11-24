@@ -1,12 +1,11 @@
 using Avalonia.Threading;
-using PcmSuite.Tuning.Core.Models;
 
 namespace PcmSuite;
 
 /// <summary>
 /// Avalonia's Windows web view can report a finished page load with an empty address if the page was replaced or left (a quick tab change)
-/// while it was still loading, and that error closes the whole program. This lets that one error pass: it is written to the crash log
-/// (marked as ignored) and the program carries on. Every other error is left alone.
+/// while it was still loading, and that error closes the whole program. It happens whenever a page loads, so it is not a crash worth
+/// reporting: this lets that one error pass without writing a crash log, and the program carries on. Every other error is left alone.
 /// </summary>
 internal static class WebViewGuard
 {
@@ -19,7 +18,7 @@ internal static class WebViewGuard
                 return;
             }
 
-            CrashLog.Write(appName, e.Exception, "web view error (ignored: the program kept running)");
+            System.Diagnostics.Trace.WriteLine($"{appName}: ignored a web view error: {e.Exception.Message}");
             e.Handled = true;
         };
     }

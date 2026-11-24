@@ -47,6 +47,10 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      # PCM Hammer's Avalonia projects also target Android, so even this build restores them and needs the Android workload.
+      - name: Install the Android workload (needed to restore PCM Hammer's projects)
+        run: dotnet workload install android
+
       - name: Build the app
         run: dotnet build src/PcmSuite.Desktop --configuration Release
 

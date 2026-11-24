@@ -10,8 +10,9 @@ using PcmSuite.Tuning.Core.Models;
 namespace PcmSuite;
 
 /// <summary>
-/// The Logs tab: the crash logs the program left behind. Pick one to read exactly what would be sent, copy it, delete it, or open the
-/// folder. Shared by the full suite and the standalone Tuner.
+/// The Logs tab, where a problem is reported from: one button copies the build details (version, commits, system), and below it are the
+/// crash logs the program left behind. Pick a log to read exactly what would be sent, copy it, delete it, or open the folder.
+/// Shared by the full suite and the standalone Tuner.
 /// </summary>
 public sealed class LogsView : UserControl
 {
@@ -41,11 +42,25 @@ public sealed class LogsView : UserControl
 
     private readonly TextBlock heading = new() { FontWeight = FontWeight.SemiBold };
     private readonly TextBlock status = new() { Opacity = 0.7, TextWrapping = TextWrapping.Wrap };
-    private readonly Button copy = new() { Content = "Copy", IsEnabled = false };
+    private readonly Button copy = new() { Content = "Copy log", IsEnabled = false };
     private readonly Button delete = new() { Content = "Delete", IsEnabled = false };
 
-    public LogsView()
+    private readonly string appName;
+
+    public LogsView(string appName)
     {
+        this.appName = appName;
+
+        Button copyDetails = new() { Content = "Copy build details for a bug report" };
+        copyDetails.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(BuildInfo.Describe(this.appName) + CrashSummary());
+                this.status.Text = "Copied the version, the builds and your system. Paste it into your message and say what you were doing.";
+            }
+        };
+
         Button refresh = new() { Content = "Refresh" };
         refresh.Click += (_, _) => this.Refresh();
 
@@ -71,7 +86,7 @@ public sealed class LogsView : UserControl
             if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard && this.viewer.Text is { Length: > 0 } text)
             {
                 await clipboard.SetTextAsync(text);
-                this.status.Text = "Copied. Paste it into your message.";
+                this.status.Text = "Copied the log. Paste it into your message.";
             }
         };
 
@@ -123,15 +138,30 @@ public sealed class LogsView : UserControl
         this.heading.Margin = new Thickness(0, 0, 0, 8);
         left.Children.Add(this.list);
 
+        // Top row: the report button. Below it the crash logs, and a status line at the bottom.
+        StackPanel report = new() { Spacing = 6, Margin = new Thickness(0, 0, 0, 16) };
+        report.Children.Add(new TextBlock { Text = "Reporting a problem", FontWeight = FontWeight.SemiBold });
+        report.Children.Add(new TextBlock
+        {
+            Text = "Copy the build details and paste them into your message. If the program closed by itself, also send the newest crash log below.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        report.Children.Add(copyDetails);
+
         Grid body = new() { Margin = new Thickness(16) };
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        Grid.SetColumnSpan(report, 2);
+        Grid.SetRow(left, 1);
+        Grid.SetRow(right, 1);
         Grid.SetColumn(right, 1);
-        Grid.SetRow(this.status, 1);
+        Grid.SetRow(this.status, 2);
         Grid.SetColumnSpan(this.status, 2);
         this.status.Margin = new Thickness(0, 8, 0, 0);
+        body.Children.Add(report);
         body.Children.Add(left);
         body.Children.Add(right);
         body.Children.Add(this.status);
@@ -162,6 +192,13 @@ public sealed class LogsView : UserControl
                 ? "No crash logs. If the program ever closes by itself, its log will be saved in " + CrashLog.Folder
                 : "Saved in " + CrashLog.Folder + ". Send the newest one with your bug report; it holds the error and the build details, not your BIN files.";
         }
+    }
+
+    // Added to the copied details so a report says how many crashes there have been.
+    private static string CrashSummary()
+    {
+        string[] files = CrashLog.Files();
+        return files.Length == 0 ? string.Empty : $"Crash logs: {files.Length}, newest {System.IO.Path.GetFileName(files[0])}{Environment.NewLine}";
     }
 
     private void ShowSelected()

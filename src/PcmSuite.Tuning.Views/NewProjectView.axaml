@@ -9,7 +9,7 @@
 
             <StackPanel Spacing="4">
                 <TextBlock Text="Project name" FontSize="12" Opacity="0.7"/>
-                <TextBox x:Name="NameBox" PlaceholderText="e.g. Bradley's Tahoe"/>
+                <TextBox x:Name="NameBox" PlaceholderText="e.g. Weekend truck"/>
             </StackPanel>
 
             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="10">

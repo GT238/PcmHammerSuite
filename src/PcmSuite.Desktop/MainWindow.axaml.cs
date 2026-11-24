@@ -94,7 +94,7 @@ public partial class MainWindow : Window
         this.TuneHost.Content = this.tuneView;
         this.helpView = new HelpView();
         this.HelpHost.Content = this.helpView;
-        this.LogsHost.Content = new LogsView();
+        this.LogsHost.Content = new LogsView("PcmSuite");
         this.AboutHost.Content = new AboutView("PcmSuite");
         this.CreditsHost.Content = new CreditsView();
 

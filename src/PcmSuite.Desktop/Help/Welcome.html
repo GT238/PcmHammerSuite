@@ -28,10 +28,10 @@
     <li><b>Flash</b> - connect to the PCM, read its contents to a BIN file, write a BIN back, verify.</li>
     <li><b>Logger</b> - choose the parameters to watch, see them live, and record them to a CSV file.</li>
     <li><b>Tuner</b> - open a BIN with its XDF, edit tables, compare with another BIN, correct the checksums and save.</li>
-    <li><b>Logs</b> - the crash logs the program left behind: read one, copy it, delete it.</li>
+    <li><b>Logs</b> - report a problem: copy the build details, and read, copy or delete the crash logs the program left behind.</li>
     <li><b>Help</b> - this page, PCM Hammer's help for Flash and Logger, and the Tuner manual.</li>
     <li><b>Credits</b> - who made what.</li>
-    <li><b>About</b> - which build you are running, and a button that copies the details for a bug report.</li>
+    <li><b>About</b> - which build you are running: the version, the PcmSuite and PCM Hammer builds, and your system.</li>
 </ul>
 
 <h3 id="workflow">A typical session</h3>
@@ -73,10 +73,12 @@
 
 <h3 id="problems">Reporting a problem</h3>
 <p>
-    Open the <b>About</b> tab and press <b>Copy details for a bug report</b>. It copies the version, the PcmSuite and PCM Hammer builds
-    (commits), and your system, so paste it into your message and say what you were doing.
+    Open the <b>Logs</b> tab. Press <b>Copy build details for a bug report</b> and paste the result into your message: it holds the version,
+    the PcmSuite and PCM Hammer builds (commits) and your system, so the report says exactly which build it came from. Then say what you were doing.
 </p>
 <p>
-    If the program closes by itself, it leaves a <b>crash log</b>. The <b>Logs</b> tab lists them: pick one to read exactly what it holds,
-    press <b>Copy</b> and paste it into your message (or <b>Open folder</b> to attach the file). You can delete a log you no longer need. A crash log holds the error, where in the program it happened and the build details. It can include file paths (and so your Windows user name), but never the contents of your BIN files.
+    If the program closed by itself, it left a <b>crash log</b>, listed on the same tab. Pick the newest to read exactly what it holds, then press
+    <b>Copy log</b> and paste it into your message (or <b>Open folder</b> to attach the file). You can delete a log you no longer need.
+    A crash log holds the error, where in the program it happened and the build details. It can include file paths (and so your Windows user name),
+    but never the contents of your BIN files.
 </p>
