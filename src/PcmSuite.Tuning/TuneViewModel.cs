@@ -1501,6 +1501,26 @@ public partial class TuneViewModel : ObservableObject
     }
 
     /// <summary>
+    /// The BINs the user already has (the Reference BINs folder and every project) that would make the best reference for the open BIN, best first,
+    /// each already compared with it. Only BINs of the same size whose XDF the Tuner can read are considered.
+    /// </summary>
+    public async Task<IReadOnlyList<ReferenceCandidate>> SuggestReferencesAsync(CancellationToken cancel = default)
+    {
+        byte[]? target = this.BinData;
+        if (target == null)
+        {
+            return Array.Empty<ReferenceCandidate>();
+        }
+
+        string? ownPath = this.BinPath;
+        return await Task.Run(() =>
+        {
+            IReadOnlyList<(string Path, string Origin)> bins = ReferenceFinder.Gather(ProjectInfo.DefaultProjectsRoot, ProjectInfo.XdfLibraryFolder);
+            return ReferenceFinder.Rank(target, ownPath, bins, (path, data) => DetectXdfs(path, null, data), cancel: cancel);
+        }, cancel);
+    }
+
+    /// <summary>
     /// Works out where the tables of another OS's definition are in the open BIN. <paramref name="referenceBin"/> is a BIN that definition belongs to;
     /// its XDF is found by part number (or <paramref name="xdf"/> is used). Nothing changes until <see cref="ApplyFound"/>.
     /// </summary>
@@ -1876,12 +1896,15 @@ public partial class TuneViewModel : ObservableObject
         }
     }
 
-    private static Task<IReadOnlyList<string>> DetectXdfsAsync(string binPath, string? projectFolder) => Task.Run<IReadOnlyList<string>>(() =>
+    private static Task<IReadOnlyList<string>> DetectXdfsAsync(string binPath, string? projectFolder) =>
+        Task.Run(() => DetectXdfs(binPath, projectFolder));
+
+    private static IReadOnlyList<string> DetectXdfs(string binPath, string? projectFolder, byte[]? data = null)
     {
         List<string> found = new();
         try
         {
-            byte[] bin = File.ReadAllBytes(binPath);
+            byte[] bin = data ?? File.ReadAllBytes(binPath);
             string?[] folders = { Path.GetDirectoryName(binPath), projectFolder, ProjectInfo.XdfLibraryFolder };
             foreach (string? folder in folders)
             {
@@ -1910,7 +1933,7 @@ public partial class TuneViewModel : ObservableObject
             .OrderByDescending(DefinitionStore.IsMine)
             .ThenByDescending(f => DefinitionStore.IsMine(f) ? File.GetLastWriteTimeUtc(f) : DateTime.MinValue)
             .ToList();
-    });
+    }
 
     private static List<ParameterNode> BuildTree(List<TableDefinition> tables, List<PatchDefinition> patches)
     {

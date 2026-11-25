@@ -25,6 +25,10 @@ public sealed class DefinitionFinderView : OverlayPage
     private readonly ListBox list = new() { MaxHeight = 260 };
     private readonly Button use = new() { Content = "Use these tables", IsEnabled = false, MinWidth = 140 };
 
+    private readonly StackPanel suggestions = new() { Spacing = 6 };
+    private readonly TextBlock suggestNote = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.75, FontSize = 12 };
+    private readonly CancellationTokenSource stop = new();
+
     private string? referenceBin;
     private FoundTables? found;
 
@@ -56,6 +60,7 @@ public sealed class DefinitionFinderView : OverlayPage
         this.includeInferred.IsCheckedChanged += (_, _) => this.UpdateUse();
         this.use.Click += (_, _) =>
         {
+            this.stop.Cancel();
             if (this.found != null)
             {
                 this.tune.ApplyFound(this.found, this.includeInferred.IsChecked == true);
@@ -64,7 +69,11 @@ public sealed class DefinitionFinderView : OverlayPage
             this.RequestClose();
         };
         Button cancel = new() { Content = "Cancel", MinWidth = 90 };
-        cancel.Click += (_, _) => this.RequestClose();
+        cancel.Click += (_, _) =>
+        {
+            this.stop.Cancel();
+            this.RequestClose();
+        };
 
         this.results.Children.Add(this.summary);
         this.results.Children.Add(this.includeInferred);
@@ -88,6 +97,10 @@ public sealed class DefinitionFinderView : OverlayPage
             Opacity = 0.75,
             FontSize = 12,
         });
+        form.Children.Add(new TextBlock { Text = "Suggested from your own BINs", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
+        form.Children.Add(this.suggestNote);
+        form.Children.Add(this.suggestions);
+        form.Children.Add(new TextBlock { Text = "Or pick one yourself", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
         form.Children.Add(new WrapPanel { Children = { Margin(choose), Margin(this.chooseXdf) } });
         form.Children.Add(this.busy);
         form.Children.Add(this.message);
@@ -99,6 +112,68 @@ public sealed class DefinitionFinderView : OverlayPage
         Grid.SetRow(buttons, 1);
         layout.Children.Add(buttons);
         this.Content = layout;
+
+        this.suggestNote.Text = "Looking through the BINs in your projects and the Reference BINs folder...";
+        this.AttachedToVisualTree += (_, _) => _ = this.LoadSuggestionsAsync();
+    }
+
+    private async Task LoadSuggestionsAsync()
+    {
+        try
+        {
+            IReadOnlyList<ReferenceCandidate> best = await this.tune.SuggestReferencesAsync(this.stop.Token);
+            this.suggestions.Children.Clear();
+            if (best.Count == 0)
+            {
+                this.suggestNote.Text = "No suggestion: none of your other BINs is the same size as this one and has an XDF the Tuner can read. " +
+                                        "Pick a BIN yourself below, or put similar BINs in the Reference BINs folder.";
+                return;
+            }
+
+            this.suggestNote.Text = "Your other BINs of the same size that have a readable XDF, with the most alike first. Each was already compared with this BIN. " +
+                                    "More tables found by their values means a closer match.";
+            for (int i = 0; i < best.Count; i++)
+            {
+                this.suggestions.Children.Add(this.SuggestionButton(best[i], i == 0));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            this.suggestNote.Text = "Could not look through your BINs: " + ex.Message;
+        }
+    }
+
+    private Button SuggestionButton(ReferenceCandidate c, bool best)
+    {
+        StackPanel text = new() { Spacing = 2 };
+        text.Children.Add(new TextBlock
+        {
+            Text = (best ? "Best:  " : string.Empty) + c.FileName + "   (" + c.Origin + ")",
+            FontWeight = FontWeight.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = $"{c.Content} tables found by their values, {c.Inferred} placed by their neighbours, {c.Unresolved} not placed   -   XDF: {c.XdfName}",
+            FontSize = 12,
+            Opacity = 0.75,
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        Button button = new() { Content = text, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+        button.Click += (_, _) =>
+        {
+            this.referenceBin = c.BinPath;
+            this.found = new FoundTables(c.Result, c.XdfName, c.FileName);
+            this.chooseXdf.IsVisible = false;
+            this.message.Foreground = null;
+            this.Show(this.found);
+        };
+        return button;
     }
 
     private static Control Margin(Control c)
