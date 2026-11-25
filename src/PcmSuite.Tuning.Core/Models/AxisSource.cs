@@ -29,6 +29,8 @@ namespace PcmSuite.Tuning.Core.Models
 
         public int DecimalPlaces { get; set; }
 
+        public AxisSource Clone() => (AxisSource)MemberwiseClone();
+
         public int SizeInBytes => Math.Max(1, this.ElementBits / 8);
 
         public int ElementOffset(int index) => (int)this.Address + index * (this.StrideBits > 0 ? this.StrideBits : this.ElementBits) / 8;

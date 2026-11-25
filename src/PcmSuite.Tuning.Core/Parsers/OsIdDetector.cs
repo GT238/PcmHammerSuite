@@ -97,7 +97,7 @@ namespace PcmSuite.Tuning.Core.Parsers
             foreach (string id in ScanForOsIds(bin))
             {
                 int count = CountOccurrences(bin, id);
-                if (count > bestCount)
+                if (count >= bestCount)
                 {
                     best = id;
                     bestCount = count;

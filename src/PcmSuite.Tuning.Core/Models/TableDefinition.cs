@@ -95,6 +95,28 @@ namespace PcmSuite.Tuning.Core.Models
         /// <summary>When set, the row headings are read from the BIN at this place instead of coming from <see cref="YLabels"/>.</summary>
         public AxisSource? YAxis { get; set; }
 
+        /// <summary>The first byte of the table in the BIN and the one after its last (rows kept at separate addresses are not covered).</summary>
+        public (int Start, int End) Extent()
+        {
+            int size = Math.Max(1, SizeInBytes);
+            int rowStep = MajorStrideBits > 0 ? MajorStrideBits / 8 : Columns * size;
+            int colStep = MinorStrideBits > 0 ? MinorStrideBits / 8 : size;
+            int start = (int)Address;
+            return (start, start + Math.Max(0, Rows - 1) * rowStep + Math.Max(0, Columns - 1) * colStep + size);
+        }
+
+        /// <summary>A copy that can be changed without touching this one (the lists, row addresses and axes are copied too).</summary>
+        public TableDefinition Clone()
+        {
+            var copy = (TableDefinition)MemberwiseClone();
+            copy.XLabels = new List<string>(XLabels);
+            copy.YLabels = new List<string>(YLabels);
+            copy.RowAddressOverrides = RowAddressOverrides == null ? null : new Dictionary<int, uint>(RowAddressOverrides);
+            copy.XAxis = XAxis?.Clone();
+            copy.YAxis = YAxis?.Clone();
+            return copy;
+        }
+
         /// <summary>The byte offset in the BIN of the cell at this row and column (the same rule reading and writing use).</summary>
         public int CellOffset(int row, int col)
         {

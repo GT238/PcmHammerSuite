@@ -46,6 +46,13 @@ public class DefinitionStoreTests : IDisposable
     }
 
     [Fact]
+    public void PrimaryId_OnATie_IsTheOneNearestTheEndOfTheFile()
+    {
+        // The OS is stored after the calibrations in the BINs we have, so with every number once the last one is the best guess.
+        Assert.Equal("12212156", OsIdDetector.PrimaryId(BinWith("16264444", "16264634", "12212156")));
+    }
+
+    [Fact]
     public void PrimaryId_IsNull_WhenTheBinHasNoPartNumber()
     {
         Assert.Null(OsIdDetector.PrimaryId(new byte[0x400]));

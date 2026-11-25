@@ -63,6 +63,8 @@
                                 ToolTip.Tip="Forget a manually chosen XDF and pick one from the OS ID of the BIN"/>
                         <Button Content="New table..." Click="OnNewTable" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Describe a table that the XDF does not have: its address, size, scaling and headings. A preview shows the numbers it would give."/>
+                        <Button Content="Find tables from a similar BIN..." Click="OnFindTables" HorizontalAlignment="Stretch"
+                                ToolTip.Tip="For a BIN with no XDF of its own: pick a similar BIN that has one, and the Tuner works out where its tables are in this BIN."/>
                         <Button Content="Save as my definition" Click="OnSaveDefinition" HorizontalAlignment="Stretch"
                                 ToolTip.Tip="Keep the tables on screen as this OS's definition in the XDF library, so any BIN with the same OS ID opens with them. The XDF is saved as a plain file that TunerPro opens too."/>
 

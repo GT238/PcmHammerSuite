@@ -924,6 +924,25 @@ public partial class TuneView : UserControl
         }
     }
 
+    private async void OnFindTables(object? sender, RoutedEventArgs e)
+    {
+        TuneViewModel? vm = this.ViewModel;
+        if (vm == null || vm.BinData == null)
+        {
+            if (vm != null)
+            {
+                vm.Status = "Open a BIN first, then the tables can be looked for in it.";
+            }
+
+            return;
+        }
+
+        await this.ShowOverlayAsync(new DefinitionFinderView(
+            vm,
+            () => this.PickFileAsync("Pick a BIN of a similar operating system that has an XDF", "BIN files", true, "*.bin", "*.BIN"),
+            () => this.PickFileAsync("Select the XDF for that BIN", "XDF files", "*.xdf", "*.XDF")));
+    }
+
     private async void OnNewTable(object? sender, RoutedEventArgs e)
     {
         TuneViewModel? vm = this.ViewModel;

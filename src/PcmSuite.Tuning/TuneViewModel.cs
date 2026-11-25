@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PcmSuite.Tuning.Core.Models;
 using PcmSuite.Tuning.Core.Parsers;
+using PcmSuite.Tuning.Core.Services;
 
 namespace PcmSuite.Tune;
 
@@ -103,14 +104,7 @@ public partial class TuneViewModel : ObservableObject
     public bool IsBinOnly { get; private set; }
 
     /// <summary>The first and last byte of a table in the BIN (end is exclusive), for the hex view.</summary>
-    public static (int Start, int End) Extent(TableDefinition t)
-    {
-        int size = Math.Max(1, t.SizeInBytes);
-        int rowStep = t.MajorStrideBits > 0 ? t.MajorStrideBits / 8 : t.Columns * size;
-        int colStep = t.MinorStrideBits > 0 ? t.MinorStrideBits / 8 : size;
-        int start = (int)t.Address;
-        return (start, start + Math.Max(0, t.Rows - 1) * rowStep + Math.Max(0, t.Columns - 1) * colStep + size);
-    }
+    public static (int Start, int End) Extent(TableDefinition t) => t.Extent();
 
     /// <summary>The name of the smallest XDF table that covers this offset, or null.</summary>
     public string? TableNameAt(int offset)
@@ -1506,6 +1500,112 @@ public partial class TuneViewModel : ObservableObject
         await this.OpenBinAsync(this.BinPath);
     }
 
+    /// <summary>
+    /// Works out where the tables of another OS's definition are in the open BIN. <paramref name="referenceBin"/> is a BIN that definition belongs to;
+    /// its XDF is found by part number (or <paramref name="xdf"/> is used). Nothing changes until <see cref="ApplyFound"/>.
+    /// </summary>
+    /// <exception cref="NoReadableDefinitionException">No XDF for the reference BIN could be found and read.</exception>
+    public async Task<FoundTables> FindTablesAsync(string referenceBin, string? xdf, CancellationToken cancel = default)
+    {
+        byte[] target = this.BinData ?? throw new InvalidOperationException("Open a BIN first.");
+        byte[] reference = await Task.Run(() => File.ReadAllBytes(referenceBin), cancel);
+
+        List<string> candidates = xdf != null
+            ? new List<string> { xdf }
+            : (await DetectXdfsAsync(referenceBin, this.CurrentProject?.ProjectFolder)).ToList();
+        if (candidates.Count == 0)
+        {
+            throw new NoReadableDefinitionException("No XDF was found for " + Path.GetFileName(referenceBin) +
+                                                    " (looked in its folder, the project folder and the XDF library).");
+        }
+
+        foreach (string candidate in candidates)
+        {
+            List<TableDefinition> tables;
+            try
+            {
+                tables = await Task.Run(() => XdfParser.Parse(candidate), cancel);
+            }
+            catch (Exception)
+            {
+                continue;   // protected or not an XDF: try the next one
+            }
+
+            if (tables.Count == 0)
+            {
+                continue;
+            }
+
+            MigrationResult result = await Task.Run(() => DefinitionMigrator.Migrate(reference, target, tables, cancel: cancel), cancel);
+            return new FoundTables(result, Path.GetFileName(candidate), Path.GetFileName(referenceBin));
+        }
+
+        throw new NoReadableDefinitionException("None of the XDFs for " + Path.GetFileName(referenceBin) + " could be read " +
+                                                "(protected XDFs only open in TunerPro). Choose an unprotected one.");
+    }
+
+    /// <summary>
+    /// Adds the placed tables to this session's definition. The open BIN is not changed. Tables the definition already has by name are left as they are,
+    /// so this can fill gaps as well as start from nothing. Returns how many were added.
+    /// </summary>
+    public int ApplyFound(FoundTables found, bool includeInferred)
+    {
+        if (this.BinData == null)
+        {
+            return 0;
+        }
+
+        List<TableDefinition> list = this.tablesByName.Values.ToList();
+        bool hadTables = list.Count > 0;
+        int added = 0;
+        foreach (TableMatch match in found.Result.Placed)
+        {
+            if (match.Kind == MatchKind.Inferred && !includeInferred)
+            {
+                continue;
+            }
+
+            if (this.tablesByName.ContainsKey(match.Source.Name))
+            {
+                continue;
+            }
+
+            list.Add(MigrationResult.Place(match, found.XdfName));
+            added++;
+        }
+
+        if (added == 0)
+        {
+            this.Status = "Nothing was added.";
+            return 0;
+        }
+
+        this.tablesByName = new Dictionary<string, TableDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (TableDefinition t in list)
+        {
+            this.tablesByName[t.Name] = t;
+        }
+
+        if (!hadTables)
+        {
+            this.IsBinOnly = false;
+            this.XdfPath = null;
+            this.XdfName = "Found by comparing with " + found.XdfName;
+        }
+
+        this.allCategories = BuildTree(list, this.loadedPatches);
+        this.ApplyMeta();
+        this.ApplyFilter(this.SearchText);
+        if (this.ReferenceData != null)
+        {
+            _ = this.RecomputeChangesAsync();
+        }
+
+        this.Status = $"Added {added} tables placed by comparing with {found.ReferenceName}. They were not checked by anyone: open a few and see that the numbers look right. " +
+                      "Use Save as my definition to keep them.";
+        return added;
+    }
+
     /// <summary>The numbers a table would show with these settings, for the definition editor's preview. Null when no BIN is open.</summary>
     public ValueEditorViewModel? PreviewEditor(TableDefinition table) =>
         this.BinData == null ? null : new ValueEditorViewModel(table, this.BinData, this.ResolveTableReference);
@@ -1955,4 +2055,15 @@ public partial class TuneViewModel : ObservableObject
 
     private static bool IsIdentity(string? equation) =>
         string.IsNullOrWhiteSpace(equation) || equation == "X" || equation == "x";
+}
+
+/// <summary>What <see cref="TuneViewModel.FindTablesAsync"/> found: where each table of the reference definition is in the open BIN.</summary>
+public sealed record FoundTables(MigrationResult Result, string XdfName, string ReferenceName);
+
+/// <summary>The reference BIN has no XDF the Tuner can read.</summary>
+public sealed class NoReadableDefinitionException : Exception
+{
+    public NoReadableDefinitionException(string message) : base(message)
+    {
+    }
 }
