@@ -86,6 +86,9 @@ namespace PcmSuite.Tuning.Core.Services
         /// <summary>A shift is only trusted for this when at least this many matched tables moved by it.</summary>
         public const int MinSupport = 2;
 
+        /// <summary>Past the first or last matched table, a table this close (in bytes) to it takes its shift.</summary>
+        public const int ExtrapolationLimit = 0x4000;
+
         /// <summary>...and clearly better than the other (by this share of its bytes).</summary>
         public const double MinWeighedMargin = 0.2;
 
@@ -168,13 +171,30 @@ namespace PcmSuite.Tuning.Core.Services
                 }
             }
 
-            if (before == null || after == null)
+            if (before == null && after == null)
             {
                 return none;
             }
 
-            int d = before.Value.Shift;
-            if (before.Value.Shift != after.Value.Shift)
+            int d;
+            if (before == null || after == null)
+            {
+                // Beyond the first or last matched table there is only one neighbour. Close to it, and when its shift is well supported,
+                // the table most likely moved the same way (nothing in between could have shifted it).
+                (int Start, int Shift) only = before ?? after!.Value;
+                if (Math.Abs(at - only.Start) > ExtrapolationLimit || anchors.Count(a => a.Shift == only.Shift) < MinSupport)
+                {
+                    return none;
+                }
+
+                d = only.Shift;
+            }
+            else
+            {
+                d = before.Value.Shift;
+            }
+
+            if (before != null && after != null && before.Value.Shift != after.Value.Shift)
             {
                 // The shift changes somewhere between the two neighbours. The table is at one of the two shifts: take the one whose bytes
                 // agree clearly better, if any does.

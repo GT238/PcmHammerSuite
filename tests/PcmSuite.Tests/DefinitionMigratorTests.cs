@@ -128,6 +128,47 @@ public class DefinitionMigratorTests
         Assert.Equal(MatchKind.Unresolved, result.Matches.Single(m => m.Source.Name == "periodic").Kind);
     }
 
+    private static byte[] Random(int length)
+    {
+        byte[] bin = new byte[length];
+        new Random(5).NextBytes(bin);
+        return bin;
+    }
+
+    [Fact]
+    public void ATableBeyondTheLastMatch_Close_TakesItsShift_AndFar_IsNotPlaced()
+    {
+        byte[] a = Source();
+        List<TableDefinition> tables = Tables();
+        tables.Add(Table("tail", 0x1000, 1, 1, 16));   // after the last matched table ("after", moved +10), within reach
+
+        MigrationResult result = DefinitionMigrator.Migrate(a, Target(a), tables);
+
+        TableMatch tail = result.Matches.Single(m => m.Source.Name == "tail");
+        Assert.Equal(MatchKind.Inferred, tail.Kind);
+        Assert.Equal(10, tail.Shift);
+
+        // Much further away than the limit, the same is not assumed.
+        byte[] big = Random(0x6000);
+        List<TableDefinition> far = new() { Table("a", 0x100), Table("b", 0x200), Table("near", 0x1000, 1, 1, 16), Table("far", 0x5000, 1, 1, 16) };
+        MigrationResult unchanged = DefinitionMigrator.Migrate(big, (byte[])big.Clone(), far);
+
+        Assert.Equal(MatchKind.Inferred, unchanged.Matches.Single(m => m.Source.Name == "near").Kind);
+        Assert.Equal(MatchKind.Unresolved, unchanged.Matches.Single(m => m.Source.Name == "far").Kind);
+    }
+
+    [Fact]
+    public void ATableBeyondTheLastMatch_IsNotPlaced_WhenOnlyOneTableBacksThatShift()
+    {
+        byte[] big = Random(0x3000);
+        List<TableDefinition> tables = new() { Table("only anchor", 0x100), Table("tail", 0x1000, 1, 1, 16) };
+
+        MigrationResult result = DefinitionMigrator.Migrate(big, (byte[])big.Clone(), tables);
+
+        Assert.Equal(MatchKind.Content, result.Matches.Single(m => m.Source.Name == "only anchor").Kind);
+        Assert.Equal(MatchKind.Unresolved, result.Matches.Single(m => m.Source.Name == "tail").Kind);
+    }
+
     [Fact]
     public void AFlatRunOfZeros_IsNotMatchedByContent()
     {
