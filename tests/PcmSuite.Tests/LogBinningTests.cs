@@ -254,3 +254,42 @@ public class LogBinningTests
         }
     }
 }
+
+/// <summary>Real files written by the Logger (engine-off logs from the Truck): read the same way the log map and VE wizard read them.</summary>
+public class RealLoggerFileTests
+{
+    [Fact]
+    public void RealLoggerCsvFiles_AreRead_AndAnEngineOffLogPlacesNothingInATable()
+    {
+        string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        string[] files = Directory.Exists(docs) ? Directory.GetFiles(docs, "20261104_*.csv") : Array.Empty<string>();
+        string? binPath = TestData.Bin("Impala_LS2_P1_Modified_v3.bin");
+        string? xdfPath = TestData.Xdf("12212156 - 2002 512k V1.xdf");
+        if (files.Length == 0 || binPath == null || xdfPath == null)
+        {
+            return;   // the real files are only on the developer's machine
+        }
+
+        byte[] bin = File.ReadAllBytes(binPath);
+        TableDefinition ve = PcmSuite.Tuning.Core.Parsers.XdfParser.Parse(xdfPath).Single(t => t.Name.StartsWith("B0101 - Main VE Table"));
+        ValueEditorViewModel editor = new(ve, bin, null);
+        Assert.True(LogBinning.TryReadAxes(editor, out double[] columns, out double[] rows, out string error), error);
+
+        foreach (string file in files)
+        {
+            using StreamReader reader = new(file);
+            LoggedData log = LogFileReader.Read(reader);
+
+            int rpm = LogBinning.FindColumn(log, "engine speed", "rpm");
+            int map = LogBinning.FindColumn(log, "manifold", "map", "load");
+            int stft = LogBinning.FindColumn(log, "short term");
+            Assert.True(rpm >= 0 && map >= 0 && stft >= 0, file);
+            Assert.True(log.Samples.Count > 50, file);
+
+            CellStats stats = LogBinning.Bin(log, rpm, map, s => s[stft], columns, rows, rpmOnColumns: true);
+
+            // The engine was off (0 rpm throughout): nothing counts, and nothing fails.
+            Assert.Equal(0, stats.Used);
+        }
+    }
+}
