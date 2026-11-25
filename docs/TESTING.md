@@ -30,7 +30,13 @@ Your files are never uploaded or sent anywhere: the program has no code that con
 - Edit a table, undo it, save with **Save As**, and check that the result is reported valid.
 - **Compare with BIN...**, the **compare workbench**, and copying a table from one BIN into another (with undo).
 - With a Logger CSV log from a real drive: the **log map** and the **VE wizard**. These have never been tried on a real vehicle log, so
-  this is the most useful test. Do the suggested corrections look sensible for your engine?
+  this is the most useful test. Do the suggested corrections look sensible for your engine? (A log from a real drive, with the engine running,
+  is the most valuable thing you can send us: say which BIN it was recorded against.)
+- **Edit definition...** (right-click a table in the list, or the Definition... button above an open table) and **New table...**: change an address,
+  size or scaling and watch the preview. Then **Save as my definition**, reopen the BIN, and check that the top bar names your definition.
+- **Find tables from a similar BIN...** on a BIN that has no XDF, with a similar BIN that does. The page suggests references from your other BINs;
+  pick one, read the list, add the tables and open a few: do the numbers look believable? This has only been measured on one pair of operating
+  systems, so results on other families (P59, other P01 OS versions, trucks and cars) are very welcome, good or bad.
 - Anything that looks wrong, confusing, slow or ugly.
 
 ## Reporting a problem

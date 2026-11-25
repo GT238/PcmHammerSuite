@@ -97,6 +97,18 @@ public sealed class DefinitionFinderView : OverlayPage
             Opacity = 0.75,
             FontSize = 12,
         });
+        if (!tune.IsBinOnly && tune.AllTables.Count > 0)
+        {
+            form.Children.Add(new TextBlock
+            {
+                Text = "This BIN already has " + tune.AllTables.Count + " tables (from " + tune.XdfName + "). Tables with a name it already has are kept as they are; " +
+                       "only tables it does not have are added, and names from a different XDF may differ, so you could end up with near-duplicates.",
+                Foreground = Brushes.Goldenrod,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 12,
+            });
+        }
+
         form.Children.Add(new TextBlock { Text = "Suggested from your own BINs", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
         form.Children.Add(this.suggestNote);
         form.Children.Add(this.suggestions);

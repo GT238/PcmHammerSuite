@@ -57,6 +57,8 @@ Developed and tested on Windows. On Linux (Pop!_OS 24.04) it builds, the tests p
 - **Save As** corrects the P01/P59 checksums and checks the result with PCM Hammer's own validator. In the suite, a valid file can be sent to the Flash tab.
 - A **log map** of where a logged drive went on a table, and a **VE wizard** that suggests corrections from a log (leaving out cold-engine, fuel-cut, moving-throttle and unsteady samples). In the suite there are also ready-made logging profiles and a live trace of the cell the engine is in.
 - Trouble codes in the BIN with descriptions and search.
+- **Your own definitions.** **Save as my definition** keeps the tables on screen as a plain, unprotected XDF in the XDF library, named for the BIN's operating system, so the next BIN with that OS opens with them. **Edit definition...** (right-click a table, or the Definition... button) changes where a table's values are, their size, scaling and headings, with a live preview from the open BIN; **New table...** adds one the XDF lacks. Headings can be read from the BIN itself.
+- **Find tables from a similar BIN.** For a BIN with no XDF: the Tuner suggests the best reference among your own BINs (the Reference BINs folder and every project; same size, an XDF it can read), compares the two BINs and works out where each of that XDF's tables went, showing what it found and how sure it is before adding anything. On a real pair (Impala 12212156 to Truck 12208322) about 300 of 363 tables were placed and 97% of the ones that could be checked against the Truck's own XDF landed on a real table. These are the Tuner's best guesses, not an XDF author's work: check that the numbers look believable.
 - A change log of every edit, and a built-in Help tab.
 
 ## Where things are kept
@@ -73,7 +75,8 @@ Open the **Logs** tab. Press **Copy build details for a bug report** and paste t
 A prototype, built by one person. Please read this before you flash anything.
 
 - The checksum fixing is tested against PCM Hammer's own validator on real P01 files (P59 uses the same code but has had less testing), but **the Tuner's edits are suggestions you are responsible for**. Flash only to a PCM you can recover.
-- Not yet tried on a real vehicle log: the log map and the VE wizard.
+- Not yet tried on a real vehicle log: the log map and the VE wizard (the log reader itself has been run on real Logger files, which were engine-off logs).
+- **Find tables from a similar BIN** has been measured on one pair of operating systems (two P01 families). Other families (P59, E38...) are untried. Please say how it does on yours.
 - Not yet tried in the live app: a BIN opened without its XDF, and handing the adapter between tabs in the suite.
 - Only one tab can use the adapter at a time. Switching tabs releases and reconnects it. A shared connection would need small changes in PCM Hammer; see [docs/UPSTREAM-PROPOSALS.md](docs/UPSTREAM-PROPOSALS.md).
 - Not done yet: equation overrides for a bad XDF scaling, and a settings screen.
