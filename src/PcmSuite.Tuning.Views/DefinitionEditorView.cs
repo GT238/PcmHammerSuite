@@ -13,7 +13,7 @@ namespace PcmSuite.Tune;
 /// </summary>
 public sealed class DefinitionEditorView : OverlayPage
 {
-    private const int PreviewRows = 12;
+    private const int PreviewRows = 6;
     private const int PreviewColumns = 12;
 
     private readonly TuneViewModel tune;
@@ -54,6 +54,7 @@ public sealed class DefinitionEditorView : OverlayPage
         description.AcceptsReturn = true;
         description.TextWrapping = TextWrapping.Wrap;
         description.MinHeight = 56;
+        description.MaxHeight = 90;
         form.Children.Add(Field("Description (optional)", description));
 
         form.Children.Add(Heading("Where the values are"));
@@ -79,24 +80,34 @@ public sealed class DefinitionEditorView : OverlayPage
         form.Children.Add(Heading("Row headings (down the side)"));
         form.Children.Add(this.AxisPanel(draft.Y));
 
-        form.Children.Add(Heading("Check"));
-        form.Children.Add(this.messages);
-        form.Children.Add(new ScrollViewer
+        // The check and the preview stay in view above the buttons, so a change to an address or a size shows its effect straight away.
+        StackPanel checkPanel = new() { Spacing = 4 };
+        checkPanel.Children.Add(this.messages);
+        checkPanel.Children.Add(new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             Content = this.preview,
         });
-        form.Children.Add(this.previewNote);
+        checkPanel.Children.Add(this.previewNote);
+        Border pinned = new()
+        {
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            BorderBrush = Brushes.Gray,
+            Padding = new Thickness(0, 8, 0, 0),
+            Child = new ScrollViewer { Content = checkPanel, MaxHeight = 230 },
+        };
 
         Button cancel = new() { Content = "Cancel", MinWidth = 90 };
         cancel.Click += (_, _) => this.RequestClose();
         this.apply.Click += (_, _) => this.OnApply();
 
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { this.apply, cancel } };
-        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 10 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto,Auto"), RowSpacing = 10 };
         layout.Children.Add(new ScrollViewer { Content = form, Padding = new Thickness(0, 0, 12, 0) });
-        Grid.SetRow(buttons, 1);
+        Grid.SetRow(pinned, 1);
+        layout.Children.Add(pinned);
+        Grid.SetRow(buttons, 2);
         layout.Children.Add(buttons);
         this.Content = layout;
 

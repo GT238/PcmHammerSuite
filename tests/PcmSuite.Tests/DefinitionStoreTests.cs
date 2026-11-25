@@ -68,6 +68,37 @@ public class DefinitionStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_NamesTheFileAfterTheOsThatTheSourceXdfCarries_NotJustTheFirstNumber()
+    {
+        // Three part numbers, each once (the OS and two calibrations); the first one found is not the OS.
+        byte[] bin = BinWith("16264444", "16264634", "12212156");
+
+        string path = DefinitionStore.Save(Tables(), bin, "12212156 - 2002 512k V1.xdf", this.folder);
+
+        Assert.Equal("12212156 - my definition.xdf", Path.GetFileName(path));
+    }
+
+    [Fact]
+    public void Save_FromAnEarlierDefinition_KeepsThatOs()
+    {
+        byte[] bin = BinWith("16264444", "12212156");
+
+        string path = DefinitionStore.Save(Tables(), bin, "12212156 - my definition.xdf", this.folder);
+
+        Assert.Equal("12212156 - my definition.xdf", Path.GetFileName(path));
+    }
+
+    [Fact]
+    public void Save_WhenTheSourceNameHasNoPartNumber_FallsBackToTheMostCommonOne()
+    {
+        byte[] bin = BinWith("12212156", "12212156", "16264444");
+
+        string path = DefinitionStore.Save(Tables(), bin, "my own file.xdf", this.folder);
+
+        Assert.Equal("12212156 - my definition.xdf", Path.GetFileName(path));
+    }
+
+    [Fact]
     public void Save_NeverReplacesAnEarlierDefinition()
     {
         byte[] bin = BinWith("12212156");
