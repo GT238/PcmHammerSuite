@@ -165,8 +165,27 @@ public class DefinitionMigratorTests
 
         MigrationResult result = DefinitionMigrator.Migrate(big, (byte[])big.Clone(), tables);
 
-        Assert.Equal(MatchKind.Content, result.Matches.Single(m => m.Source.Name == "only anchor").Kind);
+        // One match alone is not enough to trust a shift, so neither it nor the table beyond it is placed.
+        Assert.Equal(MatchKind.Unresolved, result.Matches.Single(m => m.Source.Name == "only anchor").Kind);
         Assert.Equal(MatchKind.Unresolved, result.Matches.Single(m => m.Source.Name == "tail").Kind);
+    }
+
+    [Fact]
+    public void AMatchWhoseShiftNoOtherTableHas_IsNotTrusted()
+    {
+        // Two tables did not move; a third turns up 6 bytes up, and nothing else moved by 6. It is more likely a fluke than a real shift.
+        byte[] a = Random(0x3000);
+        byte[] b = (byte[])a.Clone();
+        new Random(77).NextBytes(b.AsSpan(0x1000, 0x40));
+        Array.Copy(a, 0x1000, b, 0x1006, 0x20);
+        List<TableDefinition> tables = new() { Table("a", 0x100), Table("b", 0x200), Table("lone", 0x1000) };
+
+        MigrationResult result = DefinitionMigrator.Migrate(a, b, tables);
+
+        Assert.Equal(MatchKind.Content, result.Matches.Single(m => m.Source.Name == "a").Kind);
+        Assert.Equal(MatchKind.Content, result.Matches.Single(m => m.Source.Name == "b").Kind);
+        Assert.NotEqual(MatchKind.Content, result.Matches.Single(m => m.Source.Name == "lone").Kind);
+        Assert.NotEqual(6, result.Matches.Single(m => m.Source.Name == "lone").Shift);
     }
 
     [Fact]

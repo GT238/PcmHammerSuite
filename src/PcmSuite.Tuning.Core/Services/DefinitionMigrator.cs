@@ -136,6 +136,15 @@ namespace PcmSuite.Tuning.Core.Services
                 }
             }
 
+            // A shift that only one table has is more likely a fluke than a real shift (repeating data can fit a few bytes off, and one such match
+            // was 6 bytes off on a real BIN). That table counts as not found. It still marks a place where the shift may change, so the tables
+            // next to it are not placed either: nobody can say which shift applies there.
+            Dictionary<int, int> support = anchors.GroupBy(x => x.Shift).ToDictionary(g => g.Key, g => g.Count());
+            foreach (TableDefinition lone in found.Where(f => support[f.Value.Shift] < MinSupport).Select(f => f.Key).ToList())
+            {
+                found.Remove(lone);
+            }
+
             // Everything else: between two matched neighbours that moved by the same amount, it moved by that amount too.
             List<TableMatch> all = new();
             foreach (TableDefinition t in tables)
@@ -146,14 +155,14 @@ namespace PcmSuite.Tuning.Core.Services
                     continue;
                 }
 
-                all.Add(Infer(t, source, target, anchors));
+                all.Add(Infer(t, source, target, anchors, support));
             }
 
             progress?.Report(1);
             return new MigrationResult(all);
         }
 
-        private static TableMatch Infer(TableDefinition t, byte[] source, byte[] target, List<(int Start, int Shift)> anchors)
+        private static TableMatch Infer(TableDefinition t, byte[] source, byte[] target, List<(int Start, int Shift)> anchors, Dictionary<int, int> support)
         {
             TableMatch none = new(t, MatchKind.Unresolved, 0, 0);
             int at = (int)t.Address;
@@ -176,13 +185,19 @@ namespace PcmSuite.Tuning.Core.Services
                 return none;
             }
 
+            // Next to an untrusted (lone) match, nothing is placed.
+            if ((before != null && support[before.Value.Shift] < MinSupport) || (after != null && support[after.Value.Shift] < MinSupport))
+            {
+                return none;
+            }
+
             int d;
             if (before == null || after == null)
             {
                 // Beyond the first or last matched table there is only one neighbour. Close to it, and when its shift is well supported,
                 // the table most likely moved the same way (nothing in between could have shifted it).
                 (int Start, int Shift) only = before ?? after!.Value;
-                if (Math.Abs(at - only.Start) > ExtrapolationLimit || anchors.Count(a => a.Shift == only.Shift) < MinSupport)
+                if (Math.Abs(at - only.Start) > ExtrapolationLimit)
                 {
                     return none;
                 }
@@ -204,11 +219,8 @@ namespace PcmSuite.Tuning.Core.Services
                     return none;
                 }
 
-                // A shift that only one matched table has may be a fluke (repeating data can fit a few bytes off), so it is not trusted.
-                double first = anchors.Count(a => a.Shift == before.Value.Shift) >= MinSupport
-                    ? Agreement(source, target, start1, end1 - start1, before.Value.Shift) : 0;
-                double second = anchors.Count(a => a.Shift == after.Value.Shift) >= MinSupport
-                    ? Agreement(source, target, start1, end1 - start1, after.Value.Shift) : 0;
+                double first = Agreement(source, target, start1, end1 - start1, before.Value.Shift);
+                double second = Agreement(source, target, start1, end1 - start1, after.Value.Shift);
                 double better = Math.Max(first, second);
                 if (better < MinWeighedSimilarity || Math.Abs(first - second) < MinWeighedMargin)
                 {
