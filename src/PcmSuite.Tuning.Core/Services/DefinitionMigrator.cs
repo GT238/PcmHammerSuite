@@ -80,6 +80,15 @@ namespace PcmSuite.Tuning.Core.Services
         /// <summary>A table counts as found when this share of its bytes is the same.</summary>
         public const double MinSimilarity = 0.9;
 
+        /// <summary>Where the shift changes between a table's neighbours, it goes to the one of their two shifts that agrees at least this much...</summary>
+        public const double MinWeighedSimilarity = 0.9;
+
+        /// <summary>A shift is only trusted for this when at least this many matched tables moved by it.</summary>
+        public const int MinSupport = 2;
+
+        /// <summary>...and clearly better than the other (by this share of its bytes).</summary>
+        public const double MinWeighedMargin = 0.2;
+
         /// <summary>...and the best place must beat the runner-up by this share of its bytes (a flat run of zeros matches everywhere).</summary>
         public const double MinMargin = 0.1;
 
@@ -159,12 +168,36 @@ namespace PcmSuite.Tuning.Core.Services
                 }
             }
 
-            if (before == null || after == null || before.Value.Shift != after.Value.Shift)
+            if (before == null || after == null)
             {
                 return none;
             }
 
             int d = before.Value.Shift;
+            if (before.Value.Shift != after.Value.Shift)
+            {
+                // The shift changes somewhere between the two neighbours. The table is at one of the two shifts: take the one whose bytes
+                // agree clearly better, if any does.
+                (int start1, int end1) = t.Extent();
+                if (t.RowAddressOverrides != null || t.Mask != 0 || end1 - start1 < MinContentBytes || end1 > source.Length)
+                {
+                    return none;
+                }
+
+                // A shift that only one matched table has may be a fluke (repeating data can fit a few bytes off), so it is not trusted.
+                double first = anchors.Count(a => a.Shift == before.Value.Shift) >= MinSupport
+                    ? Agreement(source, target, start1, end1 - start1, before.Value.Shift) : 0;
+                double second = anchors.Count(a => a.Shift == after.Value.Shift) >= MinSupport
+                    ? Agreement(source, target, start1, end1 - start1, after.Value.Shift) : 0;
+                double better = Math.Max(first, second);
+                if (better < MinWeighedSimilarity || Math.Abs(first - second) < MinWeighedMargin)
+                {
+                    return none;
+                }
+
+                d = first > second ? before.Value.Shift : after.Value.Shift;
+            }
+
             (int start0, int end0) = t.Extent();
             int lowest = t.RowAddressOverrides?.Values.Select(v => (int)v).DefaultIfEmpty(start0).Min() ?? start0;
             if (lowest + d < 0 || end0 + d > target.Length || end0 > source.Length)
@@ -188,6 +221,27 @@ namespace PcmSuite.Tuning.Core.Services
             }
 
             return new TableMatch(t, MatchKind.Inferred, d, similarity);
+        }
+
+        /// <summary>The share of the table's bytes that are the same at this shift (0 when it would fall outside the target).</summary>
+        private static double Agreement(byte[] source, byte[] target, int start, int n, int shift)
+        {
+            int o = start + shift;
+            if (o < 0 || o + n > target.Length)
+            {
+                return 0;
+            }
+
+            int same = 0;
+            for (int k = 0; k < n; k++)
+            {
+                if (source[start + k] == target[o + k])
+                {
+                    same++;
+                }
+            }
+
+            return (double)same / n;
         }
 
         /// <summary>The shift (within the window around <paramref name="around"/>) at which the table's bytes agree most with the target, with the best and second-best counts.</summary>

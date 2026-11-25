@@ -87,6 +87,48 @@ public class DefinitionMigratorTests
     }
 
     [Fact]
+    public void ARepeatingTable_WhereTheShiftChanges_GoesToTheShiftThatFitsItsBytes()
+    {
+        // A table made of a repeating pattern fits at many shifts, so its bytes alone cannot place it. Its neighbours say it is at 0 or +10 (two tables
+        // moved by each), and only +10 lines the pattern up.
+        byte[] a = Source();
+        for (int i = 0x580; i < 0x700; i++)
+        {
+            a[i] = (byte)(1 + (i - 0x580) % 4);
+        }
+
+        List<TableDefinition> tables = Tables();
+        tables.Add(Table("periodic", 0x600));
+
+        MigrationResult result = DefinitionMigrator.Migrate(a, Target(a), tables);
+
+        TableMatch periodic = result.Matches.Single(m => m.Source.Name == "periodic");
+        Assert.Equal(MatchKind.Inferred, periodic.Kind);
+        Assert.Equal(10, periodic.Shift);
+        Assert.Equal(1.0, periodic.Similarity);
+    }
+
+    [Fact]
+    public void AShiftOnlyOneTableHas_IsNotTrustedToPlaceOthers()
+    {
+        // Only one table moved by +10 here (one match, not two), so a table between it and the unmoved ones is not placed by that shift.
+        byte[] a = Source();
+        for (int i = 0x580; i < 0x700; i++)
+        {
+            a[i] = (byte)(1 + (i - 0x580) % 4);
+        }
+
+        List<TableDefinition> tables = new()
+        {
+            Table("before", 0x100), Table("also before", 0x400), Table("periodic", 0x600), Table("only one after", 0x800),
+        };
+
+        MigrationResult result = DefinitionMigrator.Migrate(a, Target(a), tables);
+
+        Assert.Equal(MatchKind.Unresolved, result.Matches.Single(m => m.Source.Name == "periodic").Kind);
+    }
+
+    [Fact]
     public void AFlatRunOfZeros_IsNotMatchedByContent()
     {
         byte[] a = Source();
